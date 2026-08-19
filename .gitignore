@@ -1,0 +1,16 @@
+*.iml
+.gradle
+/local.properties
+.idea/
+.kotlin/
+.DS_Store
+/build
+/captures
+.externalNativeBuild
+.cxx
+local.properties
+
+# File sisa/backup manual, tidak perlu ikut di-push
+*.zip
+opencv/build/
+opencv/.cxx/
