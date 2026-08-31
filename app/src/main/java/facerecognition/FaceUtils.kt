@@ -12,14 +12,6 @@ object FaceUtils {
     /**
      * Mengambil Y-plane (luminance) dari ImageProxy format YUV_420_888
      * dan mengubahnya jadi Mat grayscale OpenCV (CV_8UC1).
-     *
-     * Y-plane pada YUV sudah merepresentasikan citra grayscale,
-     * sehingga tidak perlu konversi warna penuh (YUV->RGB->Gray)
-     * yang lebih berat secara komputasi -- penting untuk performa
-     * real-time di tablet kelas menengah.
-     *
-     * Catatan: rowStride pada Y-plane bisa lebih besar dari width
-     * (ada padding), sehingga perlu di-crop per baris.
      */
     fun imageProxyToGrayMat(imageProxy: ImageProxy): Mat {
         val yPlane = imageProxy.planes[0]
@@ -46,8 +38,6 @@ object FaceUtils {
 
     /**
      * Memutar Mat sesuai rotationDegrees dari ImageInfo CameraX.
-     * Frame kamera CameraX seringkali perlu diputar (90/270 derajat)
-     * tergantung orientasi sensor kamera vs orientasi layar.
      */
     fun rotateMat(mat: Mat, rotationDegrees: Int): Mat {
         return when (rotationDegrees) {
@@ -75,28 +65,59 @@ object FaceUtils {
 
     /**
      * Mengambil seluruh plane YUV dari ImageProxy dan mengonversinya jadi
-     * Mat berwarna (BGR), dibutuhkan oleh FaceEmbedder (model SFace butuh
-     * input berwarna, beda dari FaceDetector yang cukup grayscale).
+     * Mat berwarna (BGR), dibutuhkan oleh FaceEmbedder/FaceDetectorYN
+     * (butuh input berwarna, beda dari FaceDetector Haar yang cukup grayscale).
+     *
+     * PENTING: Plane U dan V pada YUV_420_888 seringkali punya pixelStride
+     * > 1 (data tidak rapat berurutan di memori). Kode ini membaca piksel
+     * satu per satu sesuai rowStride & pixelStride masing-masing plane,
+     * lalu menyusun ulang menjadi format NV21 (Y penuh + VU berselang-seling)
+     * yang benar sebelum dikonversi ke BGR.
      */
     fun imageProxyToColorMat(imageProxy: ImageProxy): Mat {
         require(imageProxy.format == ImageFormat.YUV_420_888) {
             "Format harus YUV_420_888"
         }
 
-        val yPlane = imageProxy.planes[0].buffer
-        val uPlane = imageProxy.planes[1].buffer
-        val vPlane = imageProxy.planes[2].buffer
+        val width = imageProxy.width
+        val height = imageProxy.height
 
-        val ySize = yPlane.remaining()
-        val uSize = uPlane.remaining()
-        val vSize = vPlane.remaining()
+        val yPlane = imageProxy.planes[0]
+        val uPlane = imageProxy.planes[1]
+        val vPlane = imageProxy.planes[2]
 
-        val nv21 = ByteArray(ySize + uSize + vSize)
-        yPlane.get(nv21, 0, ySize)
-        vPlane.get(nv21, ySize, vSize)
-        uPlane.get(nv21, ySize + vSize, uSize)
+        val yBuffer = yPlane.buffer
+        val uBuffer = uPlane.buffer
+        val vBuffer = vPlane.buffer
 
-        val yuvMat = Mat(imageProxy.height + imageProxy.height / 2, imageProxy.width, CvType.CV_8UC1)
+        val nv21 = ByteArray(width * height * 3 / 2)
+        var pos = 0
+
+        val yRowStride = yPlane.rowStride
+        val yPixelStride = yPlane.pixelStride
+        for (row in 0 until height) {
+            for (col in 0 until width) {
+                nv21[pos++] = yBuffer.get(row * yRowStride + col * yPixelStride)
+            }
+        }
+
+        val chromaHeight = height / 2
+        val chromaWidth = width / 2
+        val uRowStride = uPlane.rowStride
+        val uPixelStride = uPlane.pixelStride
+        val vRowStride = vPlane.rowStride
+        val vPixelStride = vPlane.pixelStride
+
+        for (row in 0 until chromaHeight) {
+            for (col in 0 until chromaWidth) {
+                val vIndex = row * vRowStride + col * vPixelStride
+                val uIndex = row * uRowStride + col * uPixelStride
+                nv21[pos++] = vBuffer.get(vIndex)
+                nv21[pos++] = uBuffer.get(uIndex)
+            }
+        }
+
+        val yuvMat = Mat(height + height / 2, width, CvType.CV_8UC1)
         yuvMat.put(0, 0, nv21)
 
         val colorMat = Mat()

@@ -5,6 +5,11 @@ import com.example.terminalabsensi.data.local.AppDatabase
 import com.example.terminalabsensi.facerecognition.FaceDetector
 import com.example.terminalabsensi.facerecognition.FaceEmbedder
 import org.koin.dsl.module
+import com.example.terminalabsensi.facerecognition.FaceDetectorYNWrapper
+import com.example.terminalabsensi.domain.usecase.TentukanJenisAbsensiUseCase
+import com.example.terminalabsensi.domain.usecase.TentukanStatusUseCase
+import com.example.terminalabsensi.domain.usecase.ValidasiAntiDuplikasiUseCase
+
 
 val appModule = module {
     // Menyediakan instance database Room secara tunggal (Singleton)
@@ -27,4 +32,9 @@ val appModule = module {
     // supaya cascade classifier cukup di-load sekali selama app hidup
     single { FaceDetector(get()) }
     single { FaceEmbedder(get()) }
+    single { FaceDetectorYNWrapper(get()) }
+
+    single { TentukanJenisAbsensiUseCase(get()) }
+    single { TentukanStatusUseCase(get()) }
+    single { ValidasiAntiDuplikasiUseCase(get()) }
 }

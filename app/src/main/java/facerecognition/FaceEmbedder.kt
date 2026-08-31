@@ -30,6 +30,8 @@ class FaceEmbedder(private val context: Context) {
 
     private var recognizer: FaceRecognizerSF? = null
     private var isInitialized = false
+    var lastError: String? = null
+        private set
 
     /**
      * Menyalin model .onnx dari res/raw ke internal storage, lalu memuatnya
@@ -51,9 +53,9 @@ class FaceEmbedder(private val context: Context) {
 
             recognizer = FaceRecognizerSF.create(
                 modelFile.absolutePath,
-                "",             // config path, kosongkan untuk ONNX
-                FaceRecognizerSF.FR_NORM_L2,  // metode normalisasi (bawaan)
-                0               // backend/target default (CPU)
+                "",                          // config path, kosongkan untuk ONNX
+                org.opencv.dnn.Dnn.DNN_BACKEND_OPENCV,  // backend eksplisit: OpenCV (bukan Halide)
+                org.opencv.dnn.Dnn.DNN_TARGET_CPU       // target eksplisit: CPU
             )
 
             isInitialized = true
@@ -103,6 +105,7 @@ class FaceEmbedder(private val context: Context) {
 
             return embedding
         } catch (e: Exception) {
+            lastError = "${e.javaClass.simpleName}: ${e.message}"
             Log.e(TAG, "Error saat ekstraksi embedding", e)
             return null
         }
@@ -127,6 +130,44 @@ class FaceEmbedder(private val context: Context) {
         mat2.release()
 
         return score.toFloat()
+    }
+
+    /**
+     * Mengekstrak embedding dengan alignment penuh menggunakan landmark
+     * dari FaceDetectorYN (5 titik: mata kanan, mata kiri, hidung, sudut
+     * mulut kanan, sudut mulut kiri). Ini versi yang lebih akurat dibanding
+     * extractEmbedding() biasa, karena wajah diluruskan dulu sebelum diekstrak.
+     *
+     * @param colorFrame Mat BERWARNA (BGR) frame penuh.
+     * @param faceRow satu baris hasil deteksi dari FaceDetectorYNWrapper.detect()
+     *                (Mat dengan 1 baris, 15 kolom: x,y,w,h + 5 landmark + score).
+     */
+    fun extractEmbeddingAligned(colorFrame: Mat, faceRow: Mat): FloatArray? {
+        val rec = recognizer
+        if (rec == null || !isInitialized) {
+            Log.w(TAG, "FaceEmbedder belum di-setup, panggil setup() dulu")
+            return null
+        }
+
+        try {
+            val alignedFace = Mat()
+            rec.alignCrop(colorFrame, faceRow, alignedFace)
+
+            val featureMat = Mat()
+            rec.feature(alignedFace, featureMat)
+
+            val embedding = FloatArray(featureMat.cols())
+            featureMat.get(0, 0, embedding)
+
+            alignedFace.release()
+            featureMat.release()
+
+            return embedding
+        } catch (e: Exception) {
+            lastError = "${e.javaClass.simpleName}: ${e.message}"
+            Log.e(TAG, "Error saat ekstraksi embedding (aligned)", e)
+            return null
+        }
     }
 
     fun isReady(): Boolean = isInitialized
