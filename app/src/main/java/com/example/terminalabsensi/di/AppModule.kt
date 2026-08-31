@@ -9,6 +9,7 @@ import com.example.terminalabsensi.facerecognition.FaceDetectorYNWrapper
 import com.example.terminalabsensi.domain.usecase.TentukanJenisAbsensiUseCase
 import com.example.terminalabsensi.domain.usecase.TentukanStatusUseCase
 import com.example.terminalabsensi.domain.usecase.ValidasiAntiDuplikasiUseCase
+import com.example.terminalabsensi.domain.usecase.ValidasiEnrollmentUseCase
 
 
 val appModule = module {
@@ -37,4 +38,5 @@ val appModule = module {
     single { TentukanJenisAbsensiUseCase(get()) }
     single { TentukanStatusUseCase(get()) }
     single { ValidasiAntiDuplikasiUseCase(get()) }
+    single { ValidasiEnrollmentUseCase(get()) }
 }
