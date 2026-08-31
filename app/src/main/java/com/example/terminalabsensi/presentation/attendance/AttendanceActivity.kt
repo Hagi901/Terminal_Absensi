@@ -46,6 +46,7 @@ class AttendanceActivity : AppCompatActivity() {
         private const val DUMMY_ID_KARYAWAN = "DUMMY001"
         private const val THRESHOLD_SEMENTARA = 0.5f
         private const val COOLDOWN_MS = 5000L // jeda antar percobaan absen, agar tidak spam
+        private const val DURASI_TAMPIL_HASIL_MS = 3000L // 3 detik, sesuai UI/UX Flow
     }
 
     private val faceDetector: FaceDetector by inject()
@@ -67,6 +68,9 @@ class AttendanceActivity : AppCompatActivity() {
     @Volatile private var referenceEmbedding: FloatArray? = null
     @Volatile private var sedangMemprosesAbsensi = false
     @Volatile private var waktuPercobaanTerakhir = 0L
+    @Volatile private var pesanHasilAbsensi: String? = null
+    @Volatile private var waktuPesanDitampilkan = 0L
+
 
     private val requestCameraPermission =
         registerForActivityResult(androidx.activity.result.contract.ActivityResultContracts.RequestPermission()) { granted ->
@@ -218,11 +222,18 @@ class AttendanceActivity : AppCompatActivity() {
                 colorMat.release()
             }
 
+            val sedangTampilkanHasil = pesanHasilAbsensi != null &&
+                    (System.currentTimeMillis() - waktuPesanDitampilkan) < DURASI_TAMPIL_HASIL_MS
+
+            if (!sedangTampilkanHasil) {
+                pesanHasilAbsensi = null
+            }
+
             val finalText = debugText
             runOnUiThread {
                 faceOverlayView.setSourceSize(grayMat.width(), grayMat.height())
                 faceOverlayView.updateFaces(facesForOverlay)
-                if (!sedangMemprosesAbsensi) {
+                if (!sedangMemprosesAbsensi && !sedangTampilkanHasil) {
                     tvStatus.text = finalText
                 }
             }
@@ -305,6 +316,8 @@ class AttendanceActivity : AppCompatActivity() {
     }
 
     private fun tampilkanHasil(pesan: String) {
+        pesanHasilAbsensi = pesan
+        waktuPesanDitampilkan = System.currentTimeMillis()
         runOnUiThread {
             tvStatus.text = pesan
         }
