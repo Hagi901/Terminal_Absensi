@@ -18,6 +18,7 @@ import androidx.core.content.ContextCompat
 import com.example.terminalabsensi.R
 import com.example.terminalabsensi.data.local.dao.AbsensiDao
 import com.example.terminalabsensi.data.local.entity.Absensi
+import com.example.terminalabsensi.domain.usecase.CariKaryawanDenganWajahUseCase
 import com.example.terminalabsensi.domain.usecase.TentukanJenisAbsensiUseCase
 import com.example.terminalabsensi.domain.usecase.TentukanStatusUseCase
 import com.example.terminalabsensi.domain.usecase.ValidasiAntiDuplikasiUseCase
@@ -40,19 +41,16 @@ class AttendanceActivity : AppCompatActivity() {
 
     companion object {
         private const val TAG = "AttendanceActivity"
-
-        // Untuk uji coba Fase 3, sebelum fitur enrollment (Fase 5) dibangun.
-        // Nanti diganti dengan hasil pencarian dari seluruh data SampelWajah tersimpan.
-        private const val DUMMY_ID_KARYAWAN = "DUMMY001"
         private const val THRESHOLD_SEMENTARA = 0.5f
-        private const val COOLDOWN_MS = 5000L // jeda antar percobaan absen, agar tidak spam
-        private const val DURASI_TAMPIL_HASIL_MS = 3000L // 3 detik, sesuai UI/UX Flow
+        private const val COOLDOWN_MS = 5000L
+        private const val DURASI_TAMPIL_HASIL_MS = 3000L
     }
 
     private val faceDetector: FaceDetector by inject()
     private val faceDetectorYN: FaceDetectorYNWrapper by inject()
     private val faceEmbedder: FaceEmbedder by inject()
     private val absensiDao: AbsensiDao by inject()
+    private val cariKaryawanDenganWajahUseCase: CariKaryawanDenganWajahUseCase by inject()
     private val tentukanJenisAbsensiUseCase: TentukanJenisAbsensiUseCase by inject()
     private val tentukanStatusUseCase: TentukanStatusUseCase by inject()
     private val validasiAntiDuplikasiUseCase: ValidasiAntiDuplikasiUseCase by inject()
@@ -64,13 +62,10 @@ class AttendanceActivity : AppCompatActivity() {
     private lateinit var cameraExecutor: ExecutorService
     private var cameraProvider: ProcessCameraProvider? = null
 
-    @Volatile private var lastEmbedding: FloatArray? = null
-    @Volatile private var referenceEmbedding: FloatArray? = null
     @Volatile private var sedangMemprosesAbsensi = false
     @Volatile private var waktuPercobaanTerakhir = 0L
     @Volatile private var pesanHasilAbsensi: String? = null
     @Volatile private var waktuPesanDitampilkan = 0L
-
 
     private val requestCameraPermission =
         registerForActivityResult(androidx.activity.result.contract.ActivityResultContracts.RequestPermission()) { granted ->
@@ -94,15 +89,11 @@ class AttendanceActivity : AppCompatActivity() {
         faceOverlayView = findViewById(R.id.faceOverlayView)
         tvStatus = findViewById(R.id.tvStatus)
 
-        // Tap layar untuk simpan wajah saat ini sebagai "wajah DUMMY001" (uji coba)
-        findViewById<View>(R.id.rootLayout).setOnClickListener {
-            val current = lastEmbedding
-            if (current != null) {
-                referenceEmbedding = current.copyOf()
-                Toast.makeText(this, "Wajah disimpan sebagai DUMMY001", Toast.LENGTH_SHORT).show()
-            } else {
-                Toast.makeText(this, "Belum ada wajah terdeteksi untuk disimpan", Toast.LENGTH_SHORT).show()
-            }
+        findViewById<View>(R.id.rootLayout).setOnLongClickListener {
+            startActivity(
+                android.content.Intent(this, com.example.terminalabsensi.presentation.admin.AdminLoginActivity::class.java)
+            )
+            true
         }
 
         cameraExecutor = Executors.newSingleThreadExecutor()
@@ -194,29 +185,18 @@ class AttendanceActivity : AppCompatActivity() {
                     val embedding = faceEmbedder.extractEmbeddingAligned(colorMat, faceRow)
 
                     if (embedding != null) {
-                        lastEmbedding = embedding
-                        val ref = referenceEmbedding
-
-                        if (ref != null) {
-                            val score = faceEmbedder.compare(embedding, ref)
-                            debugText = "Score: %.4f".format(score)
-
-                            if (score >= THRESHOLD_SEMENTARA) {
-                                val sekarang = System.currentTimeMillis()
-                                if (sekarang - waktuPercobaanTerakhir > COOLDOWN_MS) {
-                                    waktuPercobaanTerakhir = sekarang
-                                    prosesAbsensi(score)
-                                }
-                            }
-                        } else {
-                            debugText = "Wajah OK. Tap layar untuk simpan sebagai DUMMY001"
+                        debugText = "Mencocokkan wajah..."
+                        val sekarang = System.currentTimeMillis()
+                        if (sekarang - waktuPercobaanTerakhir > COOLDOWN_MS) {
+                            waktuPercobaanTerakhir = sekarang
+                            cariDanProsesAbsensi(embedding)
                         }
                     } else {
                         debugText = "GAGAL align/embed: ${faceEmbedder.lastError}"
                     }
                     detections.release()
                 } else {
-                    debugText = "YuNet: wajah tidak terdeteksi"
+                    debugText = "Wajah tidak terdeteksi dengan jelas"
                 }
 
                 colorMat.release()
@@ -247,41 +227,51 @@ class AttendanceActivity : AppCompatActivity() {
     }
 
     /**
-     * Menjalankan alur bisnis lengkap: cek anti-duplikasi, tentukan jenis
-     * (masuk/pulang), tentukan status, simpan ke database. Sesuai FR-3.2.4
-     * dan BR-07 di SRS.
+     * Mencari karyawan yang cocok dengan wajah, lalu jalankan alur bisnis
+     * lengkap: cek anti-duplikasi, tentukan jenis (masuk/pulang), tentukan
+     * status, simpan ke database. Sesuai FR-3.2.3, FR-3.2.4, BR-07 di SRS.
      */
-    private fun prosesAbsensi(confidenceScore: Float) {
+    private fun cariDanProsesAbsensi(embeddingWajah: FloatArray) {
         sedangMemprosesAbsensi = true
 
         CoroutineScope(Dispatchers.IO).launch {
             try {
+                val hasilPencarian = cariKaryawanDenganWajahUseCase(embeddingWajah, THRESHOLD_SEMENTARA)
+
+                if (hasilPencarian == null) {
+                    tampilkanHasil("Wajah tidak dikenali, silakan coba lagi")
+                    return@launch
+                }
+
+                val idKaryawan = hasilPencarian.karyawan.idKaryawan
+                val namaKaryawan = hasilPencarian.karyawan.nama
+                val confidenceScore = hasilPencarian.confidenceScore
                 val sekarang = System.currentTimeMillis()
 
-                val bolehLanjut = validasiAntiDuplikasiUseCase(DUMMY_ID_KARYAWAN, sekarang)
+                val bolehLanjut = validasiAntiDuplikasiUseCase(idKaryawan, sekarang)
                 if (!bolehLanjut) {
-                    tampilkanHasil("Absen terlalu cepat, coba lagi sebentar")
+                    tampilkanHasil("$namaKaryawan, absen terlalu cepat")
                     return@launch
                 }
 
                 val formatTanggal = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
                 val tanggalHariIni = formatTanggal.format(Date(sekarang))
 
-                val jenisHasil = tentukanJenisAbsensiUseCase(DUMMY_ID_KARYAWAN, tanggalHariIni)
+                val jenisHasil = tentukanJenisAbsensiUseCase(idKaryawan, tanggalHariIni)
 
                 when (jenisHasil) {
                     is TentukanJenisAbsensiUseCase.Hasil.SudahLengkap -> {
-                        tampilkanHasil("Anda sudah menyelesaikan absensi hari ini")
+                        tampilkanHasil("$namaKaryawan sudah menyelesaikan absensi hari ini")
                     }
                     is TentukanJenisAbsensiUseCase.Hasil.AbsenMasuk -> {
                         val statusHasil = tentukanStatusUseCase("masuk", sekarang)
-                        simpanAbsensi("masuk", statusHasil.status, statusHasil.selisihMenit, confidenceScore, sekarang)
-                        tampilkanHasil("Absen Masuk: ${statusHasil.status}")
+                        simpanAbsensi(idKaryawan, "masuk", statusHasil.status, statusHasil.selisihMenit, confidenceScore, sekarang)
+                        tampilkanHasil("$namaKaryawan — Absen Masuk: ${statusHasil.status}")
                     }
                     is TentukanJenisAbsensiUseCase.Hasil.AbsenPulang -> {
                         val statusHasil = tentukanStatusUseCase("pulang", sekarang)
-                        simpanAbsensi("pulang", statusHasil.status, statusHasil.selisihMenit, confidenceScore, sekarang)
-                        tampilkanHasil("Absen Pulang: ${statusHasil.status}")
+                        simpanAbsensi(idKaryawan, "pulang", statusHasil.status, statusHasil.selisihMenit, confidenceScore, sekarang)
+                        tampilkanHasil("$namaKaryawan — Absen Pulang: ${statusHasil.status}")
                     }
                 }
             } catch (e: Exception) {
@@ -294,6 +284,7 @@ class AttendanceActivity : AppCompatActivity() {
     }
 
     private suspend fun simpanAbsensi(
+        idKaryawan: String,
         jenisAbsen: String,
         status: String,
         selisihMenit: Int?,
@@ -304,7 +295,7 @@ class AttendanceActivity : AppCompatActivity() {
         absensiDao.insert(
             Absensi(
                 idAbsensi = UUID.randomUUID().toString(),
-                idKaryawan = DUMMY_ID_KARYAWAN,
+                idKaryawan = idKaryawan,
                 tanggal = formatTanggal.format(Date(waktuTransaksi)),
                 jenisAbsen = jenisAbsen,
                 timestamp = waktuTransaksi,
@@ -320,6 +311,13 @@ class AttendanceActivity : AppCompatActivity() {
         waktuPesanDitampilkan = System.currentTimeMillis()
         runOnUiThread {
             tvStatus.text = pesan
+        }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        if (hasCameraPermission()) {
+            startCamera()
         }
     }
 

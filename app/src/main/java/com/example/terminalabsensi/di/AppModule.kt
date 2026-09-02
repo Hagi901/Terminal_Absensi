@@ -10,7 +10,8 @@ import com.example.terminalabsensi.domain.usecase.TentukanJenisAbsensiUseCase
 import com.example.terminalabsensi.domain.usecase.TentukanStatusUseCase
 import com.example.terminalabsensi.domain.usecase.ValidasiAntiDuplikasiUseCase
 import com.example.terminalabsensi.domain.usecase.ValidasiEnrollmentUseCase
-
+import com.example.terminalabsensi.domain.usecase.CariKaryawanDenganWajahUseCase
+import com.example.terminalabsensi.domain.usecase.AutentikasiAdminUseCase
 
 val appModule = module {
     // Menyediakan instance database Room secara tunggal (Singleton)
@@ -39,4 +40,7 @@ val appModule = module {
     single { TentukanStatusUseCase(get()) }
     single { ValidasiAntiDuplikasiUseCase(get()) }
     single { ValidasiEnrollmentUseCase(get()) }
+    single { CariKaryawanDenganWajahUseCase(get(), get(), get()) }
+    single { AutentikasiAdminUseCase(get()) }
+
 }

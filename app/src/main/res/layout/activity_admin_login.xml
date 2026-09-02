@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:gravity="center"
+    android:background="@android:color/white"
+    android:padding="24dp">
+
+    <TextView
+        android:id="@+id/tvJudul"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Masuk Admin"
+        android:textSize="22sp"
+        android:textStyle="bold"
+        android:textColor="@android:color/black"
+        android:layout_marginBottom="8dp" />
+
+    <TextView
+        android:id="@+id/tvSubjudul"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Masukkan PIN Admin"
+        android:textColor="#666666"
+        android:layout_marginBottom="24dp" />
+
+    <EditText
+        android:id="@+id/etPin"
+        android:layout_width="200dp"
+        android:layout_height="wrap_content"
+        android:inputType="numberPassword"
+        android:gravity="center"
+        android:textSize="24sp"
+        android:textColor="@android:color/black"
+        android:background="#F0F0F0"
+        android:padding="16dp"
+        android:hint="PIN"
+        android:layout_marginBottom="8dp" />
+
+    <EditText
+        android:id="@+id/etKonfirmasiPin"
+        android:layout_width="200dp"
+        android:layout_height="wrap_content"
+        android:inputType="numberPassword"
+        android:gravity="center"
+        android:textSize="24sp"
+        android:textColor="@android:color/black"
+        android:background="#F0F0F0"
+        android:padding="16dp"
+        android:hint="Konfirmasi PIN"
+        android:visibility="gone"
+        android:layout_marginBottom="16dp" />
+
+    <TextView
+        android:id="@+id/tvError"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:textColor="#D32F2F"
+        android:layout_marginBottom="16dp" />
+
+    <Button
+        android:id="@+id/btnMasuk"
+        android:layout_width="200dp"
+        android:layout_height="wrap_content"
+        android:text="Masuk" />
+
+    <Button
+        android:id="@+id/btnBatal"
+        android:layout_width="200dp"
+        android:layout_height="wrap_content"
+        android:text="Batal"
+        android:layout_marginTop="8dp" />
+
+</LinearLayout>
