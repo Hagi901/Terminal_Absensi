@@ -13,6 +13,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import org.koin.android.ext.android.inject
+import com.example.terminalabsensi.presentation.admin.DashboardActivity
 
 class AdminLoginActivity : AppCompatActivity() {
 
@@ -135,8 +136,7 @@ class AdminLoginActivity : AppCompatActivity() {
     }
 
     private fun bukaDashboard() {
-        // Untuk sekarang langsung ke Tambah Karyawan, sebelum Dashboard dibangun
-        startActivity(android.content.Intent(this, TambahKaryawanActivity::class.java))
+        startActivity(android.content.Intent(this, DashboardActivity::class.java))
         finish()
     }
 

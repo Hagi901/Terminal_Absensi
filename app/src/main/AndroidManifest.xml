@@ -41,6 +41,16 @@
             android:name=".presentation.admin.AdminLoginActivity"
             android:exported="false"
             android:screenOrientation="portrait" />
+
+        <activity
+            android:name=".presentation.admin.DashboardActivity"
+            android:exported="false"
+            android:screenOrientation="portrait" />
+
+        <activity
+            android:name=".presentation.karyawan.DaftarKaryawanActivity"
+            android:exported="false"
+            android:screenOrientation="portrait" />
     </application>
 
 </manifest>

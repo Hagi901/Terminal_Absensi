@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="@android:color/white"
+    android:padding="24dp">
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Dashboard Admin"
+        android:textSize="22sp"
+        android:textStyle="bold"
+        android:textColor="@android:color/black"
+        android:layout_marginBottom="24dp" />
+
+    <Button
+        android:id="@+id/btnManajemenKaryawan"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Manajemen Karyawan"
+        android:layout_marginBottom="12dp" />
+
+    <Button
+        android:id="@+id/btnLaporanAbsensi"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Laporan Absensi"
+        android:layout_marginBottom="12dp" />
+
+    <Button
+        android:id="@+id/btnPengaturan"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Pengaturan"
+        android:layout_marginBottom="12dp" />
+
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1" />
+
+    <Button
+        android:id="@+id/btnKeluar"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Keluar ke Mode Kiosk"
+        android:backgroundTint="#D32F2F" />
+
+</LinearLayout>
