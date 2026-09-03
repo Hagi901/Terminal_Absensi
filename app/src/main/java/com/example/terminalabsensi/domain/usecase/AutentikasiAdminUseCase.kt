@@ -35,4 +35,21 @@ class AutentikasiAdminUseCase(
         val admin = adminDao.getByUsername(USERNAME_DEFAULT) ?: return false
         return PasswordHasher.verify(pin, admin.pinPasswordHash)
     }
+
+    suspend fun ubahPin(pinLama: String, pinBaru: String): Boolean {
+        val admin = adminDao.getByUsername(USERNAME_DEFAULT) ?: return false
+        if (!PasswordHasher.verify(pinLama, admin.pinPasswordHash)) {
+            return false
+        }
+        if (pinBaru.length < 6) return false
+
+        adminDao.update(
+            admin.copy(
+                pinPasswordHash = PasswordHasher.hash(pinBaru),
+                updatedAt = System.currentTimeMillis()
+            )
+        )
+        return true
+    }
+
 }

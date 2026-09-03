@@ -1,0 +1,138 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@android:color/white">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="24dp">
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Pengaturan"
+            android:textSize="20sp"
+            android:textStyle="bold"
+            android:textColor="@android:color/black"
+            android:layout_marginBottom="24dp" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Jam Kerja"
+            android:textStyle="bold"
+            android:textColor="@android:color/black"
+            android:layout_marginBottom="8dp" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Format: HH:mm (contoh: 08:00)"
+            android:textColor="#666666"
+            android:textSize="12sp"
+            android:layout_marginBottom="12dp" />
+
+        <EditText
+            android:id="@+id/etJamMulai"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="Jam Mulai Kerja"
+            android:textColor="@android:color/black"
+            android:textColorHint="#888888"
+            android:background="#F0F0F0"
+            android:padding="12dp"
+            android:inputType="datetime"
+            android:layout_marginBottom="8dp" />
+
+        <EditText
+            android:id="@+id/etBatasTelat"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="Batas Toleransi Telat"
+            android:textColor="@android:color/black"
+            android:textColorHint="#888888"
+            android:background="#F0F0F0"
+            android:padding="12dp"
+            android:inputType="datetime"
+            android:layout_marginBottom="8dp" />
+
+        <EditText
+            android:id="@+id/etJamPulang"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="Jam Pulang Kerja"
+            android:textColor="@android:color/black"
+            android:textColorHint="#888888"
+            android:background="#F0F0F0"
+            android:padding="12dp"
+            android:inputType="datetime"
+            android:layout_marginBottom="16dp" />
+
+        <Button
+            android:id="@+id/btnSimpanJamKerja"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Simpan Jam Kerja"
+            android:layout_marginBottom="32dp" />
+
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:background="#E0E0E0"
+            android:layout_marginBottom="24dp" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Ubah PIN Admin"
+            android:textStyle="bold"
+            android:textColor="@android:color/black"
+            android:layout_marginBottom="12dp" />
+
+        <EditText
+            android:id="@+id/etPinLama"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="PIN Lama"
+            android:inputType="numberPassword"
+            android:textColor="@android:color/black"
+            android:textColorHint="#888888"
+            android:background="#F0F0F0"
+            android:padding="12dp"
+            android:layout_marginBottom="8dp" />
+
+        <EditText
+            android:id="@+id/etPinBaru"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="PIN Baru (minimal 6 digit)"
+            android:inputType="numberPassword"
+            android:textColor="@android:color/black"
+            android:textColorHint="#888888"
+            android:background="#F0F0F0"
+            android:padding="12dp"
+            android:layout_marginBottom="8dp" />
+
+        <EditText
+            android:id="@+id/etKonfirmasiPinBaru"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="Konfirmasi PIN Baru"
+            android:inputType="numberPassword"
+            android:textColor="@android:color/black"
+            android:textColorHint="#888888"
+            android:background="#F0F0F0"
+            android:padding="12dp"
+            android:layout_marginBottom="16dp" />
+
+        <Button
+            android:id="@+id/btnUbahPin"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Ubah PIN" />
+
+    </LinearLayout>
+</ScrollView>

@@ -8,6 +8,7 @@ import androidx.appcompat.app.AppCompatActivity
 import com.example.terminalabsensi.R
 import com.example.terminalabsensi.presentation.attendance.AttendanceActivity
 import com.example.terminalabsensi.presentation.karyawan.DaftarKaryawanActivity
+import com.example.terminalabsensi.presentation.admin.PengaturanActivity
 
 class DashboardActivity : AppCompatActivity() {
 
@@ -24,7 +25,7 @@ class DashboardActivity : AppCompatActivity() {
         }
 
         findViewById<Button>(R.id.btnPengaturan).setOnClickListener {
-            Toast.makeText(this, "Fitur Pengaturan belum tersedia", Toast.LENGTH_SHORT).show()
+            startActivity(Intent(this, PengaturanActivity::class.java))
         }
 
         findViewById<Button>(R.id.btnKeluar).setOnClickListener {
