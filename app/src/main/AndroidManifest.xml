@@ -51,6 +51,11 @@
             android:name=".presentation.karyawan.DaftarKaryawanActivity"
             android:exported="false"
             android:screenOrientation="portrait" />
+
+        <activity
+            android:name=".presentation.karyawan.EditKaryawanActivity"
+            android:exported="false"
+            android:screenOrientation="portrait" />
     </application>
 
 </manifest>

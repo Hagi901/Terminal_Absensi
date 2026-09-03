@@ -26,13 +26,11 @@
         android:layout_width="match_parent"
         android:layout_height="match_parent">
 
-        <TextView
-            android:id="@+id/tvDaftarKaryawan"
+        <LinearLayout
+            android:id="@+id/containerDaftarKaryawan"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:textColor="@android:color/black"
-            android:textSize="14sp"
-            android:lineSpacingExtra="8dp" />
+            android:orientation="vertical" />
 
     </ScrollView>
 
