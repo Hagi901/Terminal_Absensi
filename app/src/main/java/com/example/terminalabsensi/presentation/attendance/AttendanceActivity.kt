@@ -1,10 +1,18 @@
 package com.example.terminalabsensi.presentation.attendance
 
 import android.Manifest
+import android.app.AlertDialog
 import android.content.pm.PackageManager
 import android.os.Bundle
+import android.os.CountDownTimer
+import android.os.Handler
+import android.os.Looper
 import android.util.Log
 import android.view.View
+import android.widget.Button
+import android.widget.EditText
+import android.widget.LinearLayout
+import android.widget.ProgressBar
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
@@ -26,9 +34,11 @@ import com.example.terminalabsensi.facerecognition.FaceDetector
 import com.example.terminalabsensi.facerecognition.FaceDetectorYNWrapper
 import com.example.terminalabsensi.facerecognition.FaceEmbedder
 import com.example.terminalabsensi.facerecognition.FaceUtils
+import com.example.terminalabsensi.presentation.admin.AdminLoginActivity
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.suspendCancellableCoroutine
 import org.koin.android.ext.android.inject
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -36,6 +46,7 @@ import java.util.Locale
 import java.util.UUID
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
+import kotlin.coroutines.resume
 
 class AttendanceActivity : AppCompatActivity() {
 
@@ -44,6 +55,7 @@ class AttendanceActivity : AppCompatActivity() {
         private const val THRESHOLD_SEMENTARA = 0.5f
         private const val COOLDOWN_MS = 5000L
         private const val DURASI_TAMPIL_HASIL_MS = 3000L
+        private const val DURASI_TIMEOUT_KETERANGAN_DETIK = 15
     }
 
     private val faceDetector: FaceDetector by inject()
@@ -58,14 +70,35 @@ class AttendanceActivity : AppCompatActivity() {
     private lateinit var previewView: PreviewView
     private lateinit var faceOverlayView: FaceOverlayView
     private lateinit var tvStatus: TextView
+    private lateinit var tvJam: TextView
+
+    private lateinit var overlayHasil: LinearLayout
+    private lateinit var tvIkonHasil: TextView
+    private lateinit var tvNamaHasil: TextView
+    private lateinit var tvPesanHasil: TextView
+
+    private lateinit var overlayKeterangan: LinearLayout
+    private lateinit var btnIzin: Button
+    private lateinit var btnSakit: Button
+    private lateinit var btnLainnya: Button
+    private lateinit var btnLewati: Button
+    private lateinit var progressTimeout: ProgressBar
 
     private lateinit var cameraExecutor: ExecutorService
     private var cameraProvider: ProcessCameraProvider? = null
 
     @Volatile private var sedangMemprosesAbsensi = false
     @Volatile private var waktuPercobaanTerakhir = 0L
-    @Volatile private var pesanHasilAbsensi: String? = null
-    @Volatile private var waktuPesanDitampilkan = 0L
+    @Volatile private var overlayHasilTampil = false
+
+    private val jamHandler = Handler(Looper.getMainLooper())
+    private val jamRunnable = object : Runnable {
+        override fun run() {
+            val format = SimpleDateFormat("HH:mm", Locale.getDefault())
+            tvJam.text = format.format(Date())
+            jamHandler.postDelayed(this, 15_000L)
+        }
+    }
 
     private val requestCameraPermission =
         registerForActivityResult(androidx.activity.result.contract.ActivityResultContracts.RequestPermission()) { granted ->
@@ -88,11 +121,23 @@ class AttendanceActivity : AppCompatActivity() {
         previewView = findViewById(R.id.previewView)
         faceOverlayView = findViewById(R.id.faceOverlayView)
         tvStatus = findViewById(R.id.tvStatus)
+        tvJam = findViewById(R.id.tvJam)
 
+        overlayHasil = findViewById(R.id.overlayHasil)
+        tvIkonHasil = findViewById(R.id.tvIkonHasil)
+        tvNamaHasil = findViewById(R.id.tvNamaHasil)
+        tvPesanHasil = findViewById(R.id.tvPesanHasil)
+
+        overlayKeterangan = findViewById(R.id.overlayKeterangan)
+        btnIzin = findViewById(R.id.btnIzin)
+        btnSakit = findViewById(R.id.btnSakit)
+        btnLainnya = findViewById(R.id.btnLainnya)
+        btnLewati = findViewById(R.id.btnLewati)
+        progressTimeout = findViewById(R.id.progressTimeout)
+
+        // SEMENTARA: long-press untuk akses admin, sebelum ada gestur khusus
         findViewById<View>(R.id.rootLayout).setOnLongClickListener {
-            startActivity(
-                android.content.Intent(this, com.example.terminalabsensi.presentation.admin.AdminLoginActivity::class.java)
-            )
+            startActivity(android.content.Intent(this, AdminLoginActivity::class.java))
             true
         }
 
@@ -114,6 +159,19 @@ class AttendanceActivity : AppCompatActivity() {
         }
     }
 
+    override fun onResume() {
+        super.onResume()
+        if (hasCameraPermission()) {
+            startCamera()
+        }
+        jamHandler.post(jamRunnable)
+    }
+
+    override fun onPause() {
+        super.onPause()
+        jamHandler.removeCallbacks(jamRunnable)
+    }
+
     private fun hasCameraPermission(): Boolean {
         return ContextCompat.checkSelfPermission(
             this,
@@ -123,7 +181,6 @@ class AttendanceActivity : AppCompatActivity() {
 
     private fun startCamera() {
         val cameraProviderFuture = ProcessCameraProvider.getInstance(this)
-
         cameraProviderFuture.addListener({
             cameraProvider = cameraProviderFuture.get()
             bindCameraUseCases()
@@ -135,27 +192,18 @@ class AttendanceActivity : AppCompatActivity() {
 
         val preview = Preview.Builder()
             .build()
-            .also {
-                it.setSurfaceProvider(previewView.surfaceProvider)
-            }
+            .also { it.setSurfaceProvider(previewView.surfaceProvider) }
 
         val imageAnalysis = ImageAnalysis.Builder()
             .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
             .build()
-            .also {
-                it.setAnalyzer(cameraExecutor, ::processFrame)
-            }
+            .also { it.setAnalyzer(cameraExecutor, ::processFrame) }
 
         val cameraSelector = CameraSelector.DEFAULT_FRONT_CAMERA
 
         try {
             provider.unbindAll()
-            provider.bindToLifecycle(
-                this,
-                cameraSelector,
-                preview,
-                imageAnalysis
-            )
+            provider.bindToLifecycle(this, cameraSelector, preview, imageAnalysis)
         } catch (e: Exception) {
             Log.e(TAG, "Gagal bind kamera", e)
         }
@@ -163,17 +211,21 @@ class AttendanceActivity : AppCompatActivity() {
 
     private fun processFrame(imageProxy: ImageProxy) {
         try {
-            if (!faceDetector.isReady()) {
-                return
-            }
+            if (!faceDetector.isReady()) return
 
             var grayMat = FaceUtils.imageProxyToGrayMat(imageProxy)
             grayMat = FaceUtils.rotateMat(grayMat, imageProxy.imageInfo.rotationDegrees)
             val facesForOverlay = faceDetector.detectFaces(grayMat)
 
-            var debugText = if (facesForOverlay.isEmpty()) "Arahkan wajah ke kamera" else "Wajah terdeteksi: ${facesForOverlay.size}"
+            var debugText = if (facesForOverlay.isEmpty()) "Arahkan wajah ke kamera" else "Wajah terdeteksi"
 
-            if (facesForOverlay.isNotEmpty() && faceDetectorYN.isReady() && faceEmbedder.isReady() && !sedangMemprosesAbsensi) {
+            val bolehProses = facesForOverlay.isNotEmpty() &&
+                    faceDetectorYN.isReady() &&
+                    faceEmbedder.isReady() &&
+                    !sedangMemprosesAbsensi &&
+                    !overlayHasilTampil
+
+            if (bolehProses) {
                 var colorMat = FaceUtils.imageProxyToColorMat(imageProxy)
                 colorMat = FaceUtils.rotateMat(colorMat, imageProxy.imageInfo.rotationDegrees)
 
@@ -191,29 +243,17 @@ class AttendanceActivity : AppCompatActivity() {
                             waktuPercobaanTerakhir = sekarang
                             cariDanProsesAbsensi(embedding)
                         }
-                    } else {
-                        debugText = "GAGAL align/embed: ${faceEmbedder.lastError}"
                     }
                     detections.release()
-                } else {
-                    debugText = "Wajah tidak terdeteksi dengan jelas"
                 }
-
                 colorMat.release()
-            }
-
-            val sedangTampilkanHasil = pesanHasilAbsensi != null &&
-                    (System.currentTimeMillis() - waktuPesanDitampilkan) < DURASI_TAMPIL_HASIL_MS
-
-            if (!sedangTampilkanHasil) {
-                pesanHasilAbsensi = null
             }
 
             val finalText = debugText
             runOnUiThread {
                 faceOverlayView.setSourceSize(grayMat.width(), grayMat.height())
                 faceOverlayView.updateFaces(facesForOverlay)
-                if (!sedangMemprosesAbsensi && !sedangTampilkanHasil) {
+                if (!sedangMemprosesAbsensi && !overlayHasilTampil) {
                     tvStatus.text = finalText
                 }
             }
@@ -226,11 +266,6 @@ class AttendanceActivity : AppCompatActivity() {
         }
     }
 
-    /**
-     * Mencari karyawan yang cocok dengan wajah, lalu jalankan alur bisnis
-     * lengkap: cek anti-duplikasi, tentukan jenis (masuk/pulang), tentukan
-     * status, simpan ke database. Sesuai FR-3.2.3, FR-3.2.4, BR-07 di SRS.
-     */
     private fun cariDanProsesAbsensi(embeddingWajah: FloatArray) {
         sedangMemprosesAbsensi = true
 
@@ -239,7 +274,11 @@ class AttendanceActivity : AppCompatActivity() {
                 val hasilPencarian = cariKaryawanDenganWajahUseCase(embeddingWajah, THRESHOLD_SEMENTARA)
 
                 if (hasilPencarian == null) {
-                    tampilkanHasil("Wajah tidak dikenali, silakan coba lagi")
+                    tampilkanOverlayHasil(
+                        sukses = false,
+                        nama = "",
+                        pesan = "Wajah tidak dikenali, silakan coba lagi"
+                    )
                     return@launch
                 }
 
@@ -250,7 +289,7 @@ class AttendanceActivity : AppCompatActivity() {
 
                 val bolehLanjut = validasiAntiDuplikasiUseCase(idKaryawan, sekarang)
                 if (!bolehLanjut) {
-                    tampilkanHasil("$namaKaryawan, absen terlalu cepat")
+                    tampilkanOverlayHasil(sukses = true, nama = namaKaryawan, pesan = "Absen terlalu cepat, coba lagi sebentar")
                     return@launch
                 }
 
@@ -261,24 +300,97 @@ class AttendanceActivity : AppCompatActivity() {
 
                 when (jenisHasil) {
                     is TentukanJenisAbsensiUseCase.Hasil.SudahLengkap -> {
-                        tampilkanHasil("$namaKaryawan sudah menyelesaikan absensi hari ini")
+                        tampilkanOverlayHasil(
+                            sukses = true,
+                            nama = namaKaryawan,
+                            pesan = "Anda sudah menyelesaikan absensi hari ini"
+                        )
                     }
                     is TentukanJenisAbsensiUseCase.Hasil.AbsenMasuk -> {
                         val statusHasil = tentukanStatusUseCase("masuk", sekarang)
-                        simpanAbsensi(idKaryawan, "masuk", statusHasil.status, statusHasil.selisihMenit, confidenceScore, sekarang)
-                        tampilkanHasil("$namaKaryawan — Absen Masuk: ${statusHasil.status}")
+                        simpanAbsensi(idKaryawan, "masuk", statusHasil.status, statusHasil.selisihMenit, confidenceScore, sekarang, null, null)
+                        tampilkanOverlayHasil(sukses = true, nama = namaKaryawan, pesan = "Absen Masuk — ${statusHasil.status}")
                     }
                     is TentukanJenisAbsensiUseCase.Hasil.AbsenPulang -> {
                         val statusHasil = tentukanStatusUseCase("pulang", sekarang)
-                        simpanAbsensi(idKaryawan, "pulang", statusHasil.status, statusHasil.selisihMenit, confidenceScore, sekarang)
-                        tampilkanHasil("$namaKaryawan — Absen Pulang: ${statusHasil.status}")
+
+                        if (statusHasil.status == "Pulang Cepat") {
+                            val (keterangan, catatan) = tampilkanPilihanKeteranganDanTunggu()
+                            simpanAbsensi(idKaryawan, "pulang", statusHasil.status, statusHasil.selisihMenit, confidenceScore, sekarang, keterangan, catatan)
+                            tampilkanOverlayHasil(sukses = true, nama = namaKaryawan, pesan = "Absen Pulang — Pulang Cepat ($keterangan)")
+                        } else {
+                            simpanAbsensi(idKaryawan, "pulang", statusHasil.status, statusHasil.selisihMenit, confidenceScore, sekarang, null, null)
+                            tampilkanOverlayHasil(sukses = true, nama = namaKaryawan, pesan = "Absen Pulang — ${statusHasil.status}")
+                        }
                     }
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "Error saat memproses absensi", e)
-                tampilkanHasil("Error: ${e.message}")
+                tampilkanOverlayHasil(sukses = false, nama = "", pesan = "Terjadi kesalahan, coba lagi")
             } finally {
                 sedangMemprosesAbsensi = false
+            }
+        }
+    }
+
+    /**
+     * Menampilkan layar pilihan keterangan (FR-3.2.4a) dan MENUNGGU sampai
+     * admin/pegawai memilih, atau timeout 15 detik (otomatis "Tanpa Keterangan").
+     */
+    private suspend fun tampilkanPilihanKeteranganDanTunggu(): Pair<String, String?> {
+        return suspendCancellableCoroutine { cont ->
+            var sudahDijawab = false
+
+            fun jawab(keterangan: String, catatan: String?) {
+                if (sudahDijawab) return
+                sudahDijawab = true
+                runOnUiThread { overlayKeterangan.visibility = View.GONE }
+                if (cont.isActive) cont.resume(keterangan to catatan)
+            }
+
+            runOnUiThread {
+                overlayKeterangan.visibility = View.VISIBLE
+                progressTimeout.max = DURASI_TIMEOUT_KETERANGAN_DETIK
+                progressTimeout.progress = DURASI_TIMEOUT_KETERANGAN_DETIK
+
+                val timer = object : CountDownTimer(DURASI_TIMEOUT_KETERANGAN_DETIK * 1000L, 1000L) {
+                    override fun onTick(millisUntilFinished: Long) {
+                        progressTimeout.progress = (millisUntilFinished / 1000L).toInt()
+                    }
+                    override fun onFinish() {
+                        jawab("Tanpa Keterangan", null)
+                    }
+                }
+                timer.start()
+
+                btnIzin.setOnClickListener {
+                    timer.cancel()
+                    jawab("Izin", null)
+                }
+                btnSakit.setOnClickListener {
+                    timer.cancel()
+                    jawab("Sakit", null)
+                }
+                btnLewati.setOnClickListener {
+                    timer.cancel()
+                    jawab("Tanpa Keterangan", null)
+                }
+                btnLainnya.setOnClickListener {
+                    timer.cancel()
+                    val editText = EditText(this)
+                    editText.hint = "Catatan singkat"
+                    AlertDialog.Builder(this)
+                        .setTitle("Keterangan Lainnya")
+                        .setView(editText)
+                        .setPositiveButton("Simpan") { _, _ ->
+                            jawab("Lainnya", editText.text.toString().trim().ifBlank { null })
+                        }
+                        .setNegativeButton("Batal") { _, _ ->
+                            timer.start()
+                        }
+                        .setCancelable(false)
+                        .show()
+                }
             }
         }
     }
@@ -289,7 +401,9 @@ class AttendanceActivity : AppCompatActivity() {
         status: String,
         selisihMenit: Int?,
         confidenceScore: Float,
-        waktuTransaksi: Long
+        waktuTransaksi: Long,
+        keterangan: String?,
+        catatanTambahan: String?
     ) {
         val formatTanggal = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
         absensiDao.insert(
@@ -301,24 +415,30 @@ class AttendanceActivity : AppCompatActivity() {
                 timestamp = waktuTransaksi,
                 status = status,
                 selisihMenit = selisihMenit,
+                keterangan = keterangan,
+                catatanTambahan = catatanTambahan,
                 confidenceScore = confidenceScore
             )
         )
     }
 
-    private fun tampilkanHasil(pesan: String) {
-        pesanHasilAbsensi = pesan
-        waktuPesanDitampilkan = System.currentTimeMillis()
+    private fun tampilkanOverlayHasil(sukses: Boolean, nama: String, pesan: String) {
+        overlayHasilTampil = true
         runOnUiThread {
-            tvStatus.text = pesan
+            overlayHasil.visibility = View.VISIBLE
+            overlayHasil.setBackgroundColor(
+                if (sukses) 0xE61B5E20.toInt() else 0xE6B71C1C.toInt() // hijau tua / merah tua
+            )
+            tvIkonHasil.text = if (sukses) "✓" else "✕"
+            tvNamaHasil.visibility = if (nama.isBlank()) View.GONE else View.VISIBLE
+            tvNamaHasil.text = nama
+            tvPesanHasil.text = pesan
         }
-    }
 
-    override fun onResume() {
-        super.onResume()
-        if (hasCameraPermission()) {
-            startCamera()
-        }
+        Handler(Looper.getMainLooper()).postDelayed({
+            overlayHasilTampil = false
+            overlayHasil.visibility = View.GONE
+        }, DURASI_TAMPIL_HASIL_MS)
     }
 
     override fun onDestroy() {
