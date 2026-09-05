@@ -275,7 +275,7 @@ class AttendanceActivity : AppCompatActivity() {
 
                 if (hasilPencarian == null) {
                     tampilkanOverlayHasil(
-                        sukses = false,
+                        tipe = TipeOverlay.GAGAL,
                         nama = "",
                         pesan = "Wajah tidak dikenali, silakan coba lagi"
                     )
@@ -289,7 +289,7 @@ class AttendanceActivity : AppCompatActivity() {
 
                 val bolehLanjut = validasiAntiDuplikasiUseCase(idKaryawan, sekarang)
                 if (!bolehLanjut) {
-                    tampilkanOverlayHasil(sukses = true, nama = namaKaryawan, pesan = "Absen terlalu cepat, coba lagi sebentar")
+                    tampilkanOverlayHasil(tipe = TipeOverlay.NETRAL, nama = namaKaryawan, pesan = "Absen terlalu cepat, coba lagi sebentar")
                     return@launch
                 }
 
@@ -301,7 +301,7 @@ class AttendanceActivity : AppCompatActivity() {
                 when (jenisHasil) {
                     is TentukanJenisAbsensiUseCase.Hasil.SudahLengkap -> {
                         tampilkanOverlayHasil(
-                            sukses = true,
+                            tipe = TipeOverlay.NETRAL,
                             nama = namaKaryawan,
                             pesan = "Anda sudah menyelesaikan absensi hari ini"
                         )
@@ -309,7 +309,7 @@ class AttendanceActivity : AppCompatActivity() {
                     is TentukanJenisAbsensiUseCase.Hasil.AbsenMasuk -> {
                         val statusHasil = tentukanStatusUseCase("masuk", sekarang)
                         simpanAbsensi(idKaryawan, "masuk", statusHasil.status, statusHasil.selisihMenit, confidenceScore, sekarang, null, null)
-                        tampilkanOverlayHasil(sukses = true, nama = namaKaryawan, pesan = "Absen Masuk — ${statusHasil.status}")
+                        tampilkanOverlayHasil(tipe = TipeOverlay.SUKSES, nama = namaKaryawan, pesan = "Absen Masuk — ${statusHasil.status}")
                     }
                     is TentukanJenisAbsensiUseCase.Hasil.AbsenPulang -> {
                         val statusHasil = tentukanStatusUseCase("pulang", sekarang)
@@ -317,16 +317,16 @@ class AttendanceActivity : AppCompatActivity() {
                         if (statusHasil.status == "Pulang Cepat") {
                             val (keterangan, catatan) = tampilkanPilihanKeteranganDanTunggu()
                             simpanAbsensi(idKaryawan, "pulang", statusHasil.status, statusHasil.selisihMenit, confidenceScore, sekarang, keterangan, catatan)
-                            tampilkanOverlayHasil(sukses = true, nama = namaKaryawan, pesan = "Absen Pulang — Pulang Cepat ($keterangan)")
+                            tampilkanOverlayHasil(tipe = TipeOverlay.SUKSES, nama = namaKaryawan, pesan = "Absen Pulang — Pulang Cepat ($keterangan)")
                         } else {
                             simpanAbsensi(idKaryawan, "pulang", statusHasil.status, statusHasil.selisihMenit, confidenceScore, sekarang, null, null)
-                            tampilkanOverlayHasil(sukses = true, nama = namaKaryawan, pesan = "Absen Pulang — ${statusHasil.status}")
+                            tampilkanOverlayHasil(tipe = TipeOverlay.SUKSES, nama = namaKaryawan, pesan = "Absen Pulang — ${statusHasil.status}")
                         }
                     }
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "Error saat memproses absensi", e)
-                tampilkanOverlayHasil(sukses = false, nama = "", pesan = "Terjadi kesalahan, coba lagi")
+                tampilkanOverlayHasil(tipe = TipeOverlay.GAGAL, nama = "", pesan = "Terjadi kesalahan, coba lagi")
             } finally {
                 sedangMemprosesAbsensi = false
             }
@@ -422,14 +422,24 @@ class AttendanceActivity : AppCompatActivity() {
         )
     }
 
-    private fun tampilkanOverlayHasil(sukses: Boolean, nama: String, pesan: String) {
+    private enum class TipeOverlay { SUKSES, GAGAL, NETRAL }
+
+    private fun tampilkanOverlayHasil(tipe: TipeOverlay, nama: String, pesan: String) {
         overlayHasilTampil = true
         runOnUiThread {
             overlayHasil.visibility = View.VISIBLE
             overlayHasil.setBackgroundColor(
-                if (sukses) 0xE61B5E20.toInt() else 0xE6B71C1C.toInt() // hijau tua / merah tua
+                when (tipe) {
+                    TipeOverlay.SUKSES -> 0xE61B5E20.toInt() // hijau tua
+                    TipeOverlay.GAGAL -> 0xE6B71C1C.toInt()  // merah tua
+                    TipeOverlay.NETRAL -> 0xE637474F.toInt() // biru abu tua
+                }
             )
-            tvIkonHasil.text = if (sukses) "✓" else "✕"
+            tvIkonHasil.text = when (tipe) {
+                TipeOverlay.SUKSES -> "✓"
+                TipeOverlay.GAGAL -> "✕"
+                TipeOverlay.NETRAL -> "ℹ"
+            }
             tvNamaHasil.visibility = if (nama.isBlank()) View.GONE else View.VISIBLE
             tvNamaHasil.text = nama
             tvPesanHasil.text = pesan
