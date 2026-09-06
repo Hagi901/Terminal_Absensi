@@ -47,6 +47,8 @@ import java.util.UUID
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 import kotlin.coroutines.resume
+import android.media.ToneGenerator
+import android.media.AudioManager
 
 class AttendanceActivity : AppCompatActivity() {
 
@@ -66,6 +68,7 @@ class AttendanceActivity : AppCompatActivity() {
     private val tentukanJenisAbsensiUseCase: TentukanJenisAbsensiUseCase by inject()
     private val tentukanStatusUseCase: TentukanStatusUseCase by inject()
     private val validasiAntiDuplikasiUseCase: ValidasiAntiDuplikasiUseCase by inject()
+    private val toneGenerator by lazy { ToneGenerator(AudioManager.STREAM_NOTIFICATION, 80) }
 
     private lateinit var previewView: PreviewView
     private lateinit var faceOverlayView: FaceOverlayView
@@ -170,6 +173,12 @@ class AttendanceActivity : AppCompatActivity() {
     override fun onPause() {
         super.onPause()
         jamHandler.removeCallbacks(jamRunnable)
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        cameraExecutor.shutdown()
+        toneGenerator.release()
     }
 
     private fun hasCameraPermission(): Boolean {
@@ -349,6 +358,10 @@ class AttendanceActivity : AppCompatActivity() {
             }
 
             runOnUiThread {
+                try {
+                    toneGenerator.startTone(ToneGenerator.TONE_PROP_PROMPT, 150)
+                } catch (e: Exception) { /* abaikan */ }
+
                 overlayKeterangan.visibility = View.VISIBLE
                 progressTimeout.max = DURASI_TIMEOUT_KETERANGAN_DETIK
                 progressTimeout.progress = DURASI_TIMEOUT_KETERANGAN_DETIK
@@ -426,13 +439,24 @@ class AttendanceActivity : AppCompatActivity() {
 
     private fun tampilkanOverlayHasil(tipe: TipeOverlay, nama: String, pesan: String) {
         overlayHasilTampil = true
+
+        try {
+            when (tipe) {
+                TipeOverlay.SUKSES -> toneGenerator.startTone(ToneGenerator.TONE_PROP_BEEP, 200)
+                TipeOverlay.GAGAL -> toneGenerator.startTone(ToneGenerator.TONE_CDMA_PIP, 400)
+                TipeOverlay.NETRAL -> toneGenerator.startTone(ToneGenerator.TONE_PROP_BEEP2, 200)
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Gagal memainkan nada notifikasi", e)
+        }
+
         runOnUiThread {
             overlayHasil.visibility = View.VISIBLE
             overlayHasil.setBackgroundColor(
                 when (tipe) {
-                    TipeOverlay.SUKSES -> 0xE61B5E20.toInt() // hijau tua
-                    TipeOverlay.GAGAL -> 0xE6B71C1C.toInt()  // merah tua
-                    TipeOverlay.NETRAL -> 0xE637474F.toInt() // biru abu tua
+                    TipeOverlay.SUKSES -> 0xE61B5E20.toInt()
+                    TipeOverlay.GAGAL -> 0xE6B71C1C.toInt()
+                    TipeOverlay.NETRAL -> 0xE637474F.toInt()
                 }
             )
             tvIkonHasil.text = when (tipe) {
@@ -451,8 +475,4 @@ class AttendanceActivity : AppCompatActivity() {
         }, DURASI_TAMPIL_HASIL_MS)
     }
 
-    override fun onDestroy() {
-        super.onDestroy()
-        cameraExecutor.shutdown()
-    }
 }
