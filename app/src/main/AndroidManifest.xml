@@ -61,6 +61,11 @@
             android:name=".presentation.admin.PengaturanActivity"
             android:exported="false"
             android:screenOrientation="portrait" />
+
+        <activity
+            android:name=".presentation.laporan.LaporanActivity"
+            android:exported="false"
+            android:screenOrientation="portrait" />
     </application>
 
 </manifest>

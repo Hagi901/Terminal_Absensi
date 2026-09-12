@@ -9,6 +9,7 @@ import com.example.terminalabsensi.R
 import com.example.terminalabsensi.presentation.attendance.AttendanceActivity
 import com.example.terminalabsensi.presentation.karyawan.DaftarKaryawanActivity
 import com.example.terminalabsensi.presentation.admin.PengaturanActivity
+import com.example.terminalabsensi.presentation.laporan.LaporanActivity
 
 class DashboardActivity : AppCompatActivity() {
 
@@ -21,7 +22,7 @@ class DashboardActivity : AppCompatActivity() {
         }
 
         findViewById<Button>(R.id.btnLaporanAbsensi).setOnClickListener {
-            Toast.makeText(this, "Fitur Laporan Absensi belum tersedia", Toast.LENGTH_SHORT).show()
+            startActivity(Intent(this, LaporanActivity::class.java))
         }
 
         findViewById<Button>(R.id.btnPengaturan).setOnClickListener {
