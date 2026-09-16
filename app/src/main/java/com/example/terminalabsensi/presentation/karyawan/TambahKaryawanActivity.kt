@@ -21,7 +21,6 @@ import com.example.terminalabsensi.data.local.dao.SampelWajahDao
 import com.example.terminalabsensi.data.local.entity.Karyawan
 import com.example.terminalabsensi.data.local.entity.SampelWajah
 import com.example.terminalabsensi.domain.usecase.ValidasiEnrollmentUseCase
-import com.example.terminalabsensi.facerecognition.FaceDetector
 import com.example.terminalabsensi.facerecognition.FaceDetectorYNWrapper
 import com.example.terminalabsensi.facerecognition.FaceEmbedder
 import com.example.terminalabsensi.facerecognition.FaceUtils
@@ -41,7 +40,6 @@ class TambahKaryawanActivity : AppCompatActivity() {
         private val SUDUT_CAPTURE = listOf("depan", "kiri", "kanan")
     }
 
-    private val faceDetector: FaceDetector by inject()
     private val faceDetectorYN: FaceDetectorYNWrapper by inject()
     private val faceEmbedder: FaceEmbedder by inject()
     private val karyawanDao: KaryawanDao by inject()
@@ -60,9 +58,9 @@ class TambahKaryawanActivity : AppCompatActivity() {
     private lateinit var cameraExecutor: ExecutorService
     private var cameraProvider: ProcessCameraProvider? = null
 
-    // State enrollment
     @Volatile private var lastEmbedding: FloatArray? = null
-    @Volatile private var lastFaceDetected = false
+    @Volatile private var jumlahWajahTerdeteksi = 0
+    @Volatile private var lastPoseDetected: String = "depan" // <-- Tambahkan baris ini
     private val sampelTersimpan = mutableListOf<FloatArray>()
     @Volatile private var mintaAmbilSampel = false
 
@@ -93,7 +91,6 @@ class TambahKaryawanActivity : AppCompatActivity() {
         cameraExecutor = Executors.newSingleThreadExecutor()
 
         cameraExecutor.execute {
-            faceDetector.setup(R.raw.haarcascade_frontalface_alt2)
             faceDetectorYN.setup(R.raw.face_detection_yunet)
             faceEmbedder.setup(R.raw.face_recognition_sface)
         }
@@ -140,47 +137,66 @@ class TambahKaryawanActivity : AppCompatActivity() {
 
     private fun processFrame(imageProxy: ImageProxy) {
         try {
-            if (!faceDetector.isReady() || !faceDetectorYN.isReady() || !faceEmbedder.isReady()) {
-                return
-            }
+            if (!faceDetectorYN.isReady() || !faceEmbedder.isReady()) return
 
-            var grayMat = FaceUtils.imageProxyToGrayMat(imageProxy)
-            grayMat = FaceUtils.rotateMat(grayMat, imageProxy.imageInfo.rotationDegrees)
-            val faces = faceDetector.detectFaces(grayMat)
-            grayMat.release()
+            var colorMat = FaceUtils.imageProxyToColorMat(imageProxy)
+            colorMat = FaceUtils.rotateMat(colorMat, imageProxy.imageInfo.rotationDegrees)
 
-            lastFaceDetected = faces.size == 1
+            faceDetectorYN.setInputSize(colorMat.width(), colorMat.height())
+            val detections = faceDetectorYN.detect(colorMat)
 
-            if (faces.size == 1) {
-                var colorMat = FaceUtils.imageProxyToColorMat(imageProxy)
-                colorMat = FaceUtils.rotateMat(colorMat, imageProxy.imageInfo.rotationDegrees)
+            jumlahWajahTerdeteksi = detections?.rows() ?: 0
 
-                faceDetectorYN.setInputSize(colorMat.width(), colorMat.height())
-                val detections = faceDetectorYN.detect(colorMat)
-
-                if (detections != null && detections.rows() > 0) {
-                    val embedding = faceEmbedder.extractEmbeddingAligned(colorMat, detections.row(0))
-                    lastEmbedding = embedding
-                    detections.release()
-                } else {
-                    lastEmbedding = null
-                }
-                colorMat.release()
+            // Di processFrame() TambahKaryawanActivity.kt:
+            if (jumlahWajahTerdeteksi == 1) {
+                val faceRow = detections!!.row(0)
+                val poseDetected = faceDetectorYN.deteksiPoseWajah(faceRow)
+                val embedding = faceEmbedder.extractEmbeddingAligned(colorMat, faceRow)
+                lastEmbedding = embedding
+                lastPoseDetected = poseDetected
             } else {
                 lastEmbedding = null
             }
 
+            detections?.release()
+            colorMat.release()
+
             if (mintaAmbilSampel) {
                 mintaAmbilSampel = false
-                simpanSampelSaatIni(faces.size)
+                simpanSampelSaatIni(jumlahWajahTerdeteksi)
             }
 
             runOnUiThread {
-                tvInstruksi.text = when {
-                    faces.size > 1 -> "Pastikan hanya 1 wajah dalam frame"
-                    faces.isEmpty() -> "Wajah tidak terdeteksi"
-                    lastEmbedding == null -> "Posisikan wajah lebih jelas"
-                    else -> "Wajah OK — sudut: ${sudutSaatIni()}"
+                val sudutTarget = sudutSaatIni()
+                val poseSesuai = lastPoseDetected == sudutTarget
+
+                when {
+                    jumlahWajahTerdeteksi > 1 -> {
+                        tvInstruksi.text = "Pastikan hanya 1 wajah dalam frame"
+                        tvInstruksi.setTextColor(0xFFFFC107.toInt()) // Kuning peringatan
+                        btnAmbilSampel.isEnabled = false
+                    }
+                    jumlahWajahTerdeteksi == 0 -> {
+                        tvInstruksi.text = "Wajah tidak terdeteksi, posisikan ke kamera"
+                        tvInstruksi.setTextColor(0xFFFFFFFF.toInt()) // Putih
+                        btnAmbilSampel.isEnabled = false
+                    }
+                    lastEmbedding == null -> {
+                        tvInstruksi.text = "Posisikan wajah lebih jelas"
+                        tvInstruksi.setTextColor(0xFFFFFFFF.toInt())
+                        btnAmbilSampel.isEnabled = false
+                    }
+                    !poseSesuai -> {
+                        tvInstruksi.text = "Silakan menolehkan wajah ke arah: ${sudutTarget.uppercase()}"
+                        tvInstruksi.setTextColor(0xFFFFCA28.toInt()) // Oranye instruksi
+                        btnAmbilSampel.isEnabled = false
+                    }
+                    else -> {
+                        // KONFIRMASI BERHASIL DETEKSI POSE
+                        tvInstruksi.text = "✓ Wajah ${sudutTarget.uppercase()} Terdeteksi! Tekan Ambil Sampel"
+                        tvInstruksi.setTextColor(0xFF4CAF50.toInt()) // Hijau sukses
+                        btnAmbilSampel.isEnabled = true // Tombol baru bisa diklik jika pose sudah sesuai
+                    }
                 }
             }
         } catch (e: Exception) {
@@ -195,19 +211,24 @@ class TambahKaryawanActivity : AppCompatActivity() {
     }
 
     private fun onKlikAmbilSampel() {
+        val sudutTarget = sudutSaatIni()
         if (sampelTersimpan.size >= SUDUT_CAPTURE.size) {
             Toast.makeText(this, "Sampel sudah lengkap", Toast.LENGTH_SHORT).show()
             return
         }
-        if (!lastFaceDetected) {
+        if (lastEmbedding == null) {
             Toast.makeText(this, "Pastikan wajah terdeteksi dengan jelas", Toast.LENGTH_SHORT).show()
+            return
+        }
+        if (lastPoseDetected != sudutTarget) {
+            Toast.makeText(this, "Pose wajah belum sesuai. Silakan menoleh ke ${sudutTarget.uppercase()}", Toast.LENGTH_SHORT).show()
             return
         }
         mintaAmbilSampel = true
     }
 
-    private fun simpanSampelSaatIni(jumlahWajahTerdeteksi: Int) {
-        if (jumlahWajahTerdeteksi != 1) {
+    private fun simpanSampelSaatIni(jumlahWajah: Int) {
+        if (jumlahWajah != 1) {
             runOnUiThread {
                 Toast.makeText(this, "Pastikan hanya satu wajah dalam frame", Toast.LENGTH_SHORT).show()
             }

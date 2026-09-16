@@ -53,9 +53,9 @@ class FaceDetectorYNWrapper(private val context: Context) {
                 modelFile.absolutePath,
                 "",
                 Size(inputWidth.toDouble(), inputHeight.toDouble()),
-                0.1f,   // score threshold: minimal confidence agar dianggap wajah
-                0.3f,   // nms threshold: untuk menyaring box yang tumpang tindih
-                5000    // top_k: jumlah kandidat maksimum sebelum NMS
+                0.6f,   // Minimal keyakinan 60% agar benar-benar dianggap wajah manusia
+                0.3f,   // nms threshold
+                5000    // top_k
             )
 
             isInitialized = true
@@ -106,6 +106,54 @@ class FaceDetectorYNWrapper(private val context: Context) {
             lastError = "${e.javaClass.simpleName}: ${e.message}"
             Log.e(TAG, "Error saat deteksi wajah YuNet", e)
             null
+        }
+    }
+
+    /**
+     * Mengubah hasil deteksi mentah (Mat, 15 kolom per baris) jadi List<Rect>
+     * sederhana untuk keperluan menggambar bounding box overlay di layar.
+     */
+    fun detectionsToRects(faces: Mat?): List<org.opencv.core.Rect> {
+        if (faces == null || faces.rows() == 0) return emptyList()
+        val list = mutableListOf<org.opencv.core.Rect>()
+        for (i in 0 until faces.rows()) {
+            val rowData = FloatArray(15)
+            faces.get(i, 0, rowData)
+            val x = rowData[0].toInt()
+            val y = rowData[1].toInt()
+            val w = rowData[2].toInt()
+            val h = rowData[3].toInt()
+            list.add(org.opencv.core.Rect(x, y, w, h))
+        }
+        return list
+    }
+
+    /**
+     * Mendeteksi orientasi pose wajah ("depan", "kiri", "kanan")
+     * berdasarkan posisi relatif landmark hidung terhadap kedua mata.
+     */
+    fun deteksiPoseWajah(faceRow: Mat): String {
+        val rowData = FloatArray(15)
+        faceRow.get(0, 0, rowData)
+
+        val rightEyeX = rowData[4]
+        val rightEyeY = rowData[5]
+        val leftEyeX = rowData[6]
+        val leftEyeY = rowData[7]
+        val noseX = rowData[8]
+        val noseY = rowData[9]
+
+        val distRightEyeToNose = Math.hypot((noseX - rightEyeX).toDouble(), (noseY - rightEyeY).toDouble())
+        val distLeftEyeToNose = Math.hypot((noseX - leftEyeX).toDouble(), (noseY - leftEyeY).toDouble())
+
+        if (distRightEyeToNose == 0.0 || distLeftEyeToNose == 0.0) return "depan"
+
+        val ratio = distRightEyeToNose / distLeftEyeToNose
+
+        return when {
+            ratio < 0.78 -> "kanan" // Hidung jauh lebih dekat ke mata kanan -> menoleh ke kanan
+            ratio > 1.28 -> "kiri"  // Hidung jauh lebih dekat ke mata kiri -> menoleh ke kiri
+            else -> "depan"
         }
     }
 
