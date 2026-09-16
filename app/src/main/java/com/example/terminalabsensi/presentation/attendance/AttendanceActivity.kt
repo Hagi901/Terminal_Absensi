@@ -290,7 +290,7 @@ class AttendanceActivity : AppCompatActivity() {
 
                 val bolehLanjut = validasiAntiDuplikasiUseCase(idKaryawan, sekarang)
                 if (!bolehLanjut) {
-                    tampilkanOverlayHasil(tipe = TipeOverlay.NETRAL, nama = namaKaryawan, pesan = "Absen terlalu cepat, coba lagi sebentar")
+                    tampilkanOverlayHasil(tipe = TipeOverlay.NETRAL, nama = namaKaryawan, pesan = "Presensi terlalu cepat, coba lagi sebentar")
                     return@launch
                 }
 
@@ -304,13 +304,13 @@ class AttendanceActivity : AppCompatActivity() {
                         tampilkanOverlayHasil(
                             tipe = TipeOverlay.NETRAL,
                             nama = namaKaryawan,
-                            pesan = "Anda sudah menyelesaikan absensi hari ini"
+                            pesan = "Anda sudah menyelesaikan presensi hari ini"
                         )
                     }
                     is TentukanJenisAbsensiUseCase.Hasil.AbsenMasuk -> {
                         val statusHasil = tentukanStatusUseCase("masuk", sekarang)
                         simpanAbsensi(idKaryawan, "masuk", statusHasil.status, statusHasil.selisihMenit, confidenceScore, sekarang, null, null)
-                        tampilkanOverlayHasil(tipe = TipeOverlay.SUKSES, nama = namaKaryawan, pesan = "Absen Masuk — ${statusHasil.status}")
+                        tampilkanOverlayHasil(tipe = TipeOverlay.SUKSES, nama = namaKaryawan, pesan = "Presensi Masuk — ${statusHasil.status}")
                     }
                     is TentukanJenisAbsensiUseCase.Hasil.AbsenPulang -> {
                         val statusHasil = tentukanStatusUseCase("pulang", sekarang)
@@ -318,10 +318,10 @@ class AttendanceActivity : AppCompatActivity() {
                         if (statusHasil.status == "Pulang Cepat") {
                             val (keterangan, catatan) = tampilkanPilihanKeteranganDanTunggu()
                             simpanAbsensi(idKaryawan, "pulang", statusHasil.status, statusHasil.selisihMenit, confidenceScore, sekarang, keterangan, catatan)
-                            tampilkanOverlayHasil(tipe = TipeOverlay.SUKSES, nama = namaKaryawan, pesan = "Absen Pulang — Pulang Cepat ($keterangan)")
+                            tampilkanOverlayHasil(tipe = TipeOverlay.SUKSES, nama = namaKaryawan, pesan = "Presensi Pulang — Pulang Cepat ($keterangan)")
                         } else {
                             simpanAbsensi(idKaryawan, "pulang", statusHasil.status, statusHasil.selisihMenit, confidenceScore, sekarang, null, null)
-                            tampilkanOverlayHasil(tipe = TipeOverlay.SUKSES, nama = namaKaryawan, pesan = "Absen Pulang — ${statusHasil.status}")
+                            tampilkanOverlayHasil(tipe = TipeOverlay.SUKSES, nama = namaKaryawan, pesan = "Presensi Pulang — ${statusHasil.status}")
                         }
                     }
                 }

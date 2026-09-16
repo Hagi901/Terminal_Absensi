@@ -247,7 +247,7 @@ class LaporanActivity : AppCompatActivity() {
             var y = margin
 
             fun gambarHeaderHalaman() {
-                canvas.drawText("Laporan Absensi — Terminal Absensi", margin, y, paintJudul)
+                canvas.drawText("Laporan Presensi — Terminal Presensi", margin, y, paintJudul)
                 y += 20f
                 canvas.drawText("Periode: $tanggalMulai s/d $tanggalAkhir", margin, y, paintSubjudul)
                 y += 14f

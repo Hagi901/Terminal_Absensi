@@ -26,7 +26,7 @@
         android:id="@+id/btnLaporanAbsensi"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="Laporan Absensi"
+        android:text="Laporan Presensi"
         android:layout_marginBottom="12dp" />
 
     <Button
