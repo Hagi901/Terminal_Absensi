@@ -13,28 +13,7 @@ object FaceUtils {
      * Mengambil Y-plane (luminance) dari ImageProxy format YUV_420_888
      * dan mengubahnya jadi Mat grayscale OpenCV (CV_8UC1).
      */
-    fun imageProxyToGrayMat(imageProxy: ImageProxy): Mat {
-        val yPlane = imageProxy.planes[0]
-        val yBuffer = yPlane.buffer
-        val rowStride = yPlane.rowStride
-        val width = imageProxy.width
-        val height = imageProxy.height
 
-        val rawMat = Mat(height, rowStride, CvType.CV_8UC1)
-        val data = ByteArray(yBuffer.remaining())
-        yBuffer.get(data)
-        rawMat.put(0, 0, data)
-
-        return if (rowStride == width) {
-            rawMat
-        } else {
-            val cropped = Mat(rawMat, org.opencv.core.Rect(0, 0, width, height))
-            val result = cropped.clone()
-            rawMat.release()
-            cropped.release()
-            result
-        }
-    }
 
     /**
      * Memutar Mat sesuai rotationDegrees dari ImageInfo CameraX.
