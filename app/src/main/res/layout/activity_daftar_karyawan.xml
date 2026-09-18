@@ -3,28 +3,62 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
-    android:background="@android:color/white"
-    android:padding="24dp">
+    android:background="#F5F5F5">
 
-    <TextView
+    <!-- Header -->
+    <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="Daftar Karyawan"
-        android:textSize="20sp"
-        android:textStyle="bold"
-        android:textColor="@android:color/black"
-        android:layout_marginBottom="16dp" />
+        android:orientation="vertical"
+        android:background="#1565C0"
+        android:paddingHorizontal="20dp"
+        android:paddingTop="20dp"
+        android:paddingBottom="20dp">
 
-    <Button
-        android:id="@+id/btnTambahKaryawan"
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Manajemen Karyawan"
+            android:textSize="20sp"
+            android:textStyle="bold"
+            android:textColor="#FFFFFF" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Tap nama karyawan untuk edit atau hapus"
+            android:textSize="12sp"
+            android:textColor="#90CAF9"
+            android:layout_marginTop="2dp" />
+
+    </LinearLayout>
+
+    <!-- Tombol tambah -->
+    <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="+ Tambah Karyawan Baru"
-        android:layout_marginBottom="16dp" />
+        android:background="#FFFFFF"
+        android:padding="12dp"
+        android:elevation="2dp">
 
+        <Button
+            android:id="@+id/btnTambahKaryawan"
+            android:layout_width="match_parent"
+            android:layout_height="48dp"
+            android:text="Tambah Karyawan Baru"
+            android:textSize="14sp"
+            android:textStyle="bold"
+            android:backgroundTint="#1565C0" />
+
+    </LinearLayout>
+
+    <!-- Daftar karyawan -->
     <ScrollView
         android:layout_width="match_parent"
-        android:layout_height="match_parent">
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:padding="12dp"
+        android:clipToPadding="false">
 
         <LinearLayout
             android:id="@+id/containerDaftarKaryawan"

@@ -5,6 +5,7 @@ import android.app.AlertDialog
 import android.content.pm.PackageManager
 import android.media.AudioManager
 import android.media.ToneGenerator
+import android.os.Build
 import android.os.Bundle
 import android.os.CountDownTimer
 import android.os.Handler
@@ -109,7 +110,7 @@ class AttendanceActivity : AppCompatActivity() {
             } else {
                 Toast.makeText(
                     this,
-                    "Izin kamera dibutuhkan untuk fitur absensi wajah",
+                    "Izin kamera dibutuhkan untuk fitur presensi wajah",
                     Toast.LENGTH_LONG
                 ).show()
                 finish()
@@ -119,6 +120,48 @@ class AttendanceActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_attendance)
+
+        // ===== KIOSK MODE =====
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                window.insetsController?.let { controller ->
+                    controller.hide(
+                        android.view.WindowInsets.Type.statusBars() or
+                                android.view.WindowInsets.Type.navigationBars()
+                    )
+                    controller.systemBarsBehavior =
+                        android.view.WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+                }
+            } else {
+                @Suppress("DEPRECATION")
+                window.decorView.systemUiVisibility = (
+                        View.SYSTEM_UI_FLAG_FULLSCREEN
+                                or View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
+                                or View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
+                                or View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+                                or View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
+                                or View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
+                        )
+            }
+            window.addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        } catch (e: Exception) {
+            Log.w(TAG, "Kiosk mode gagal diaktifkan: ${e.message}")
+        }
+        // ===== AKHIR KIOSK MODE =====
+
+        previewView = findViewById(R.id.previewView)
+        // ... sisa kode tetap sama
+
+        setContentView(R.layout.activity_attendance)
+
+        onBackPressedDispatcher.addCallback(
+            this,
+            object : androidx.activity.OnBackPressedCallback(true) {
+                override fun handleOnBackPressed() {
+                    // Sengaja dikosongkan — kiosk tidak boleh keluar
+                }
+            }
+        )
 
         previewView = findViewById(R.id.previewView)
         faceOverlayView = findViewById(R.id.faceOverlayView)
@@ -147,8 +190,24 @@ class AttendanceActivity : AppCompatActivity() {
         cameraExecutor.execute {
             val successYN = faceDetectorYN.setup(R.raw.face_detection_yunet)
             val successEmbedder = faceEmbedder.setup(R.raw.face_recognition_sface)
-            if (!successYN) Log.e(TAG, "Setup FaceDetectorYN gagal")
-            if (!successEmbedder) Log.e(TAG, "Setup FaceEmbedder gagal")
+
+            if (!successYN || !successEmbedder) {
+                val pesanGagal = buildString {
+                    if (!successYN) appendLine("• Model deteksi wajah (YuNet) gagal dimuat.")
+                    if (!successEmbedder) appendLine("• Model pengenalan wajah (SFace) gagal dimuat.")
+                    appendLine("\nCoba restart aplikasi. Jika masalah berlanjut, hubungi administrator.")
+                }
+                runOnUiThread {
+                    AlertDialog.Builder(this)
+                        .setTitle("⚠️ Sistem Tidak Siap")
+                        .setMessage(pesanGagal.trim())
+                        .setCancelable(false)
+                        .setPositiveButton("Tutup Aplikasi") { _, _ -> finish() }
+                        .show()
+                }
+            } else {
+                Log.i(TAG, "Semua model AI berhasil dimuat.")
+            }
         }
 
         if (hasCameraPermission()) {
@@ -157,6 +216,7 @@ class AttendanceActivity : AppCompatActivity() {
             requestCameraPermission.launch(Manifest.permission.CAMERA)
         }
     }
+
 
     override fun onResume() {
         super.onResume()
@@ -208,10 +268,6 @@ class AttendanceActivity : AppCompatActivity() {
         }
     }
 
-    /**
-     * Sekarang sepenuhnya berbasis YuNet -- baik untuk overlay visual (bounding
-     * box) maupun untuk ekstraksi embedding. Haar Cascade sudah tidak dipakai.
-     */
     private fun processFrame(imageProxy: ImageProxy) {
         try {
             if (!faceDetectorYN.isReady() || !faceEmbedder.isReady()) return
@@ -228,10 +284,15 @@ class AttendanceActivity : AppCompatActivity() {
                 emptyList()
             }
 
-            var debugText = if (rectsUntukOverlay.isEmpty()) "Arahkan wajah ke kamera" else "Wajah terdeteksi"
+            val jumlahWajah = detections?.rows() ?: 0
 
-            val bolehProses = detections != null &&
-                    detections.rows() > 0 &&
+            var debugText = when {
+                jumlahWajah == 0 -> "Arahkan wajah ke kamera"
+                jumlahWajah > 1  -> "Terdeteksi $jumlahWajah wajah, pastikan hanya 1 orang"
+                else             -> "Wajah terdeteksi"
+            }
+
+            val bolehProses = jumlahWajah == 1 &&
                     !sedangMemprosesAbsensi &&
                     !overlayHasilTampil
 
@@ -249,12 +310,15 @@ class AttendanceActivity : AppCompatActivity() {
                 }
             }
 
+            val matWidth = colorMat.width()
+            val matHeight = colorMat.height()
+
             detections?.release()
             colorMat.release()
 
             val finalText = debugText
             runOnUiThread {
-                faceOverlayView.setSourceSize(colorMat.width(), colorMat.height())
+                faceOverlayView.setSourceSize(matWidth, matHeight)
                 faceOverlayView.updateFaces(rectsUntukOverlay)
                 if (!sedangMemprosesAbsensi && !overlayHasilTampil) {
                     tvStatus.text = finalText
@@ -296,7 +360,6 @@ class AttendanceActivity : AppCompatActivity() {
 
                 val formatTanggal = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
                 val tanggalHariIni = formatTanggal.format(Date(sekarang))
-
                 val jenisHasil = tentukanJenisAbsensiUseCase(idKaryawan, tanggalHariIni)
 
                 when (jenisHasil) {
@@ -314,7 +377,6 @@ class AttendanceActivity : AppCompatActivity() {
                     }
                     is TentukanJenisAbsensiUseCase.Hasil.AbsenPulang -> {
                         val statusHasil = tentukanStatusUseCase("pulang", sekarang)
-
                         if (statusHasil.status == "Pulang Cepat") {
                             val (keterangan, catatan) = tampilkanPilihanKeteranganDanTunggu()
                             simpanAbsensi(idKaryawan, "pulang", statusHasil.status, statusHasil.selisihMenit, confidenceScore, sekarang, keterangan, catatan)
@@ -358,24 +420,13 @@ class AttendanceActivity : AppCompatActivity() {
                     override fun onTick(millisUntilFinished: Long) {
                         progressTimeout.progress = (millisUntilFinished / 1000L).toInt()
                     }
-                    override fun onFinish() {
-                        jawab("Tanpa Keterangan", null)
-                    }
+                    override fun onFinish() { jawab("Tanpa Keterangan", null) }
                 }
                 timer.start()
 
-                btnIzin.setOnClickListener {
-                    timer.cancel()
-                    jawab("Izin", null)
-                }
-                btnSakit.setOnClickListener {
-                    timer.cancel()
-                    jawab("Sakit", null)
-                }
-                btnLewati.setOnClickListener {
-                    timer.cancel()
-                    jawab("Tanpa Keterangan", null)
-                }
+                btnIzin.setOnClickListener { timer.cancel(); jawab("Izin", null) }
+                btnSakit.setOnClickListener { timer.cancel(); jawab("Sakit", null) }
+                btnLewati.setOnClickListener { timer.cancel(); jawab("Tanpa Keterangan", null) }
                 btnLainnya.setOnClickListener {
                     timer.cancel()
                     val editText = EditText(this)
@@ -386,9 +437,7 @@ class AttendanceActivity : AppCompatActivity() {
                         .setPositiveButton("Simpan") { _, _ ->
                             jawab("Lainnya", editText.text.toString().trim().ifBlank { null })
                         }
-                        .setNegativeButton("Batal") { _, _ ->
-                            timer.start()
-                        }
+                        .setNegativeButton("Batal") { _, _ -> timer.start() }
                         .setCancelable(false)
                         .show()
                 }
@@ -430,9 +479,9 @@ class AttendanceActivity : AppCompatActivity() {
 
         try {
             when (tipe) {
-                TipeOverlay.SUKSES -> toneGenerator.startTone(ToneGenerator.TONE_PROP_BEEP, 200)
-                TipeOverlay.GAGAL -> toneGenerator.startTone(ToneGenerator.TONE_CDMA_PIP, 400)
-                TipeOverlay.NETRAL -> toneGenerator.startTone(ToneGenerator.TONE_PROP_BEEP2, 200)
+                TipeOverlay.SUKSES  -> toneGenerator.startTone(ToneGenerator.TONE_PROP_BEEP, 200)
+                TipeOverlay.GAGAL   -> toneGenerator.startTone(ToneGenerator.TONE_CDMA_PIP, 400)
+                TipeOverlay.NETRAL  -> toneGenerator.startTone(ToneGenerator.TONE_PROP_BEEP2, 200)
             }
         } catch (e: Exception) {
             Log.w(TAG, "Gagal memainkan nada notifikasi", e)
@@ -442,15 +491,15 @@ class AttendanceActivity : AppCompatActivity() {
             overlayHasil.visibility = View.VISIBLE
             overlayHasil.setBackgroundColor(
                 when (tipe) {
-                    TipeOverlay.SUKSES -> 0xE61B5E20.toInt()
-                    TipeOverlay.GAGAL -> 0xE6B71C1C.toInt()
-                    TipeOverlay.NETRAL -> 0xE637474F.toInt()
+                    TipeOverlay.SUKSES  -> 0xE61B5E20.toInt()
+                    TipeOverlay.GAGAL   -> 0xE6B71C1C.toInt()
+                    TipeOverlay.NETRAL  -> 0xE637474F.toInt()
                 }
             )
             tvIkonHasil.text = when (tipe) {
-                TipeOverlay.SUKSES -> "✓"
-                TipeOverlay.GAGAL -> "✕"
-                TipeOverlay.NETRAL -> "ℹ"
+                TipeOverlay.SUKSES  -> "✓"
+                TipeOverlay.GAGAL   -> "✕"
+                TipeOverlay.NETRAL  -> "ℹ"
             }
             tvNamaHasil.visibility = if (nama.isBlank()) View.GONE else View.VISIBLE
             tvNamaHasil.text = nama

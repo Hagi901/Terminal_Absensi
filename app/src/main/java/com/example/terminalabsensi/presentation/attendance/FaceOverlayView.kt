@@ -27,9 +27,9 @@ class FaceOverlayView @JvmOverloads constructor(
     private var sourceHeight: Int = 1
 
     private val boxPaint = Paint().apply {
-        color = Color.GREEN
+        color = Color.parseColor("#42A5F5")   // Biru cerah, sesuai palet
         style = Paint.Style.STROKE
-        strokeWidth = 6f
+        strokeWidth = 8f                      // Sedikit lebih tebal agar lebih jelas
         isAntiAlias = true
     }
 

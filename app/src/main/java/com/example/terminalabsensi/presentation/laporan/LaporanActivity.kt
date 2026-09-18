@@ -39,7 +39,6 @@ class LaporanActivity : AppCompatActivity() {
     private lateinit var etTanggalAkhir: EditText
     private lateinit var containerLaporan: LinearLayout
 
-    // Menyimpan hasil filter terakhir, dipakai nanti untuk export CSV/PDF
     var dataLaporanTerakhir: List<Pair<Absensi, String>> = emptyList()
         private set
 
@@ -58,7 +57,11 @@ class LaporanActivity : AppCompatActivity() {
         findViewById<Button>(R.id.btnTampilkan).setOnClickListener { tampilkanLaporan() }
 
         findViewById<Button>(R.id.btnExportCsv).setOnClickListener {
-            Toast.makeText(this, "Tampilkan laporan dulu sebelum export", Toast.LENGTH_SHORT).show()
+            if (dataLaporanTerakhir.isEmpty()) {
+                Toast.makeText(this, "Tampilkan laporan dulu sebelum export", Toast.LENGTH_SHORT).show()
+            } else {
+                exportCsv()
+            }
         }
         findViewById<Button>(R.id.btnExportPdf).setOnClickListener {
             if (dataLaporanTerakhir.isEmpty()) {
@@ -71,9 +74,7 @@ class LaporanActivity : AppCompatActivity() {
 
     private fun format() = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
 
-    private fun setTanggalDefault() {
-        setRentangBulanIni()
-    }
+    private fun setTanggalDefault() { setRentangBulanIni() }
 
     private fun setRentangMingguIni() {
         val kalender = Calendar.getInstance()
@@ -104,9 +105,6 @@ class LaporanActivity : AppCompatActivity() {
         }
 
         CoroutineScope(Dispatchers.IO).launch {
-            // Ambil sekali (bukan Flow terus-menerus, laporan itu snapshot pada saat ditekan)
-            var hasilDenganNama: List<Pair<Absensi, String>> = emptyList()
-
             absensiDao.getByRentangTanggal(tanggalMulai, tanggalAkhir).collect { daftarAbsensi ->
                 val cacheNama = mutableMapOf<String, String>()
                 val hasil = mutableListOf<Pair<Absensi, String>>()
@@ -118,12 +116,8 @@ class LaporanActivity : AppCompatActivity() {
                     hasil.add(absensi to nama)
                 }
 
-                hasilDenganNama = hasil
                 dataLaporanTerakhir = hasil
-
                 runOnUiThread { tampilkanTabel(hasil) }
-
-                // Cukup ambil snapshot pertama, hentikan collect Flow supaya tidak terus mendengarkan
                 return@collect
             }
         }
@@ -134,103 +128,192 @@ class LaporanActivity : AppCompatActivity() {
 
         if (data.isEmpty()) {
             val tv = TextView(this)
-            tv.text = "Tidak ada data absensi pada rentang tanggal ini."
-            tv.setTextColor(0xFF000000.toInt())
+            tv.text = "Tidak ada data presensi pada rentang tanggal ini."
+            tv.setTextColor(0xFF888888.toInt())
+            tv.gravity = android.view.Gravity.CENTER
+            tv.setPadding(0, 48, 0, 0)
             containerLaporan.addView(tv)
             return
         }
 
         for ((absensi, nama) in data) {
-            val tv = TextView(this)
-            val perluPerhatian =
-                absensi.status == "Pulang Cepat" && absensi.keterangan == "Tanpa Keterangan"
-
+            val perluPerhatian = absensi.status == "Pulang Cepat" && absensi.keterangan == "Tanpa Keterangan"
             val jamText = SimpleDateFormat("HH:mm", Locale.getDefault()).format(absensi.timestamp)
-            val keteranganText = absensi.keterangan?.let { " ($it)" } ?: ""
+            val keteranganText = absensi.keterangan?.let { " · $it" } ?: ""
 
-            tv.text =
-                "$nama — ${absensi.tanggal} $jamText\n${absensi.jenisAbsen.uppercase()}: ${absensi.status}$keteranganText"
-            tv.setTextColor(0xFF000000.toInt())
-            tv.setPadding(16, 16, 16, 16)
-            tv.gravity = Gravity.START
-            tv.setBackgroundColor(if (perluPerhatian) 0xFFFFF3CD.toInt() else 0xFFF0F0F0.toInt())
+            // Warna status
+            val warnaBg = when {
+                perluPerhatian                        -> 0xFFFFF3CD.toInt() // kuning
+                absensi.status == "Terlambat"         -> 0xFFFFEBEE.toInt() // merah muda
+                absensi.status == "Pulang Cepat"      -> 0xFFFFF8E1.toInt() // oranye muda
+                absensi.jenisAbsen == "masuk"         -> 0xFFE8F5E9.toInt() // hijau muda
+                else                                  -> 0xFFE3F2FD.toInt() // biru muda
+            }
 
-            val params = LinearLayout.LayoutParams(
+            val warnaStatus = when (absensi.status) {
+                "Terlambat"    -> 0xFFC62828.toInt()
+                "Pulang Cepat" -> 0xFFE65100.toInt()
+                "Tepat Waktu"  -> 0xFF2E7D32.toInt()
+                else           -> 0xFF1565C0.toInt()
+            }
+
+            // Card luar
+            val card = LinearLayout(this)
+            card.orientation = LinearLayout.VERTICAL
+            card.setBackgroundColor(warnaBg)
+            card.setPadding(20, 16, 20, 16)
+
+            val cardParams = LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT
             )
-            params.bottomMargin = 8
-            tv.layoutParams = params
+            cardParams.bottomMargin = 8
+            card.layoutParams = cardParams
 
-            containerLaporan.addView(tv)
+            // Baris atas: Nama + Jam
+            val barisPertama = LinearLayout(this)
+            barisPertama.orientation = LinearLayout.HORIZONTAL
+
+            val tvNama = TextView(this)
+            tvNama.text = nama
+            tvNama.textSize = 15f
+            tvNama.setTextColor(0xFF1A1A1A.toInt())
+            tvNama.typeface = android.graphics.Typeface.DEFAULT_BOLD
+            tvNama.layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+
+            val tvJam = TextView(this)
+            tvJam.text = "${absensi.tanggal}  $jamText"
+            tvJam.textSize = 12f
+            tvJam.setTextColor(0xFF777777.toInt())
+            tvJam.gravity = android.view.Gravity.END
+
+            barisPertama.addView(tvNama)
+            barisPertama.addView(tvJam)
+
+            // Baris bawah: Jenis + Status + Keterangan
+            val barisKedua = TextView(this)
+            val jenisLabel = if (absensi.jenisAbsen == "masuk") "▲ MASUK" else "▼ PULANG"
+            barisKedua.text = "$jenisLabel  ·  ${absensi.status}$keteranganText"
+            barisKedua.textSize = 13f
+            barisKedua.setTextColor(warnaStatus)
+            val barisParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            )
+            barisParams.topMargin = 4
+            barisKedua.layoutParams = barisParams
+
+            card.addView(barisPertama)
+            card.addView(barisKedua)
+            containerLaporan.addView(card)
         }
     }
-        private fun exportCsv() {
-            val tanggalMulai = etTanggalMulai.text.toString().trim()
-            val tanggalAkhir = etTanggalAkhir.text.toString().trim()
-            val namaFile = "absensi_${tanggalMulai}_${tanggalAkhir}.csv"
 
-            val sb = StringBuilder()
-            sb.append("ID Karyawan,Nama,Tanggal,Jam,Jenis Absen,Status,Keterangan,Catatan Tambahan\n")
+    private fun exportCsv() {
+        val tanggalMulai = etTanggalMulai.text.toString().trim()
+        val tanggalAkhir = etTanggalAkhir.text.toString().trim()
+        val namaFile = "presensi_${tanggalMulai}_${tanggalAkhir}.csv"
 
-            for ((absensi, nama) in dataLaporanTerakhir) {
-                val jam = SimpleDateFormat("HH:mm", Locale.getDefault()).format(absensi.timestamp)
-                sb.append(
-                    "${absensi.idKaryawan},${csvSafe(nama)},${absensi.tanggal},$jam," +
-                            "${absensi.jenisAbsen},${csvSafe(absensi.status)}," +
-                            "${csvSafe(absensi.keterangan ?: "")},${csvSafe(absensi.catatanTambahan ?: "")}\n"
-                )
-            }
+        val sb = StringBuilder()
+        // "sep=," memberitahu Excel bahwa pemisah kolom adalah koma
+        sb.append("sep=,\n")
+        sb.append("Nama,Tanggal,Jam,Jenis,Status,Keterangan,Catatan Tambahan,ID Karyawan\n")
 
-            try {
-                val uri = simpanFileKeDownloads(namaFile, "text/csv")
-                if (uri != null) {
-                    contentResolver.openOutputStream(uri)?.use { outputStream ->
-                        OutputStreamWriter(outputStream).use { writer ->
-                            writer.write(sb.toString())
-                        }
+        for ((absensi, nama) in dataLaporanTerakhir) {
+            val jam = SimpleDateFormat("HH:mm", Locale.getDefault()).format(absensi.timestamp)
+            sb.append(
+                "${csvSafe(nama)},${absensi.tanggal},$jam," +
+                        "${absensi.jenisAbsen},${csvSafe(absensi.status)}," +
+                        "${csvSafe(absensi.keterangan ?: "")}," +
+                        "${csvSafe(absensi.catatanTambahan ?: "")}," +
+                        "\"${absensi.idKaryawan}\"\n"
+            )
+        }
+
+        try {
+            val uri = simpanFileKeDownloads(namaFile, "text/csv")
+            if (uri != null) {
+                contentResolver.openOutputStream(uri)?.use { outputStream ->
+                    OutputStreamWriter(outputStream, Charsets.UTF_8).use { writer ->
+                        writer.write("\uFEFF") // BOM UTF-8 agar karakter Indonesia terbaca
+                        writer.write(sb.toString())
                     }
-                    Toast.makeText(this, "CSV berhasil disimpan di folder Download: $namaFile", Toast.LENGTH_LONG).show()
-                } else {
-                    Toast.makeText(this, "Gagal membuat file CSV", Toast.LENGTH_LONG).show()
                 }
-            } catch (e: Exception) {
-                Toast.makeText(this, "Gagal export CSV: ${e.message}", Toast.LENGTH_LONG).show()
-            }
-        }
-
-        /** Menangani beberapa karakter khusus CSV (koma, kutip) supaya file tidak rusak */
-        private fun csvSafe(teks: String): String {
-            return if (teks.contains(",") || teks.contains("\"")) {
-                "\"${teks.replace("\"", "\"\"")}\""
+                Toast.makeText(this, "CSV disimpan di folder Download: $namaFile", Toast.LENGTH_LONG).show()
             } else {
-                teks
+                Toast.makeText(this, "Gagal membuat file CSV", Toast.LENGTH_LONG).show()
             }
+        } catch (e: Exception) {
+            Toast.makeText(this, pesanErrorPenyimpanan(e), Toast.LENGTH_LONG).show()
         }
+    }
 
-        /**
-         * Menyimpan file ke folder Download publik menggunakan MediaStore
-         * (cara resmi Android 10+ tanpa perlu izin penyimpanan eksplisit).
-         */
-        private fun simpanFileKeDownloads(namaFile: String, mimeType: String): android.net.Uri? {
+    /** Menangani karakter khusus CSV (koma, kutip) supaya file tidak rusak */
+    private fun csvSafe(teks: String): String {
+        return if (teks.contains(",") || teks.contains("\"")) {
+            "\"${teks.replace("\"", "\"\"")}\""
+        } else {
+            teks
+        }
+    }
+
+    /**
+     * Mendeteksi apakah exception disebabkan oleh penyimpanan penuh,
+     * lalu mengembalikan pesan error yang ramah pengguna.
+     */
+    private fun pesanErrorPenyimpanan(e: Exception): String {
+        val pesanTeknis = e.message?.lowercase() ?: ""
+        return when {
+            pesanTeknis.contains("enospc") ||
+                    pesanTeknis.contains("no space") ||
+                    pesanTeknis.contains("space left") ||
+                    e is java.io.IOException && pesanTeknis.contains("stream") ->
+                "Penyimpanan perangkat penuh. Hapus file lain lalu coba lagi."
+            pesanTeknis.contains("permission") ||
+                    pesanTeknis.contains("denied") ->
+                "Tidak ada izin untuk menyimpan file. Periksa pengaturan izin aplikasi."
+            else ->
+                "Gagal menyimpan file. Pastikan penyimpanan cukup lalu coba lagi.\n(Detail: ${e.message})"
+        }
+    }
+
+    /**
+     * Menyimpan file ke folder Download publik menggunakan MediaStore
+     * (cara resmi Android 10+ tanpa perlu izin penyimpanan eksplisit).
+     */
+    /**
+     * Menyimpan file ke folder Download publik.
+     * - Android 10+ (API 29): pakai MediaStore (tidak perlu izin storage)
+     * - Android 7-9 (API 24-28): pakai File langsung ke folder Downloads publik
+     */
+    @Suppress("DEPRECATION")
+    private fun simpanFileKeDownloads(namaFile: String, mimeType: String): android.net.Uri? {
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            // Android 10+ — pakai MediaStore (cara resmi, tanpa izin storage)
             val contentValues = ContentValues().apply {
                 put(MediaStore.MediaColumns.DISPLAY_NAME, namaFile)
                 put(MediaStore.MediaColumns.MIME_TYPE, mimeType)
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                    put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS)
-                }
+                put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS)
             }
-            return contentResolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, contentValues)
+            contentResolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, contentValues)
+        } else {
+            // Android 7-9 — tulis langsung ke folder Downloads publik
+            val downloadsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
+            downloadsDir.mkdirs()
+            val file = java.io.File(downloadsDir, namaFile)
+            android.net.Uri.fromFile(file)
         }
+    }
 
     private fun exportPdf() {
         val tanggalMulai = etTanggalMulai.text.toString().trim()
         val tanggalAkhir = etTanggalAkhir.text.toString().trim()
-        val namaFile = "laporan_absensi_${tanggalMulai}_${tanggalAkhir}.pdf"
+        val namaFile = "laporan_presensi_${tanggalMulai}_${tanggalAkhir}.pdf"
+
+        val pdfDocument = PdfDocument() // Di luar try agar bisa diakses di catch
 
         try {
-            val pdfDocument = PdfDocument()
-            val pageWidth = 595 // A4 dalam point, potret
+            val pageWidth = 595
             val pageHeight = 842
             val margin = 40f
 
@@ -256,12 +339,12 @@ class LaporanActivity : AppCompatActivity() {
                 y += 20f
 
                 val kolomX = floatArrayOf(margin, margin + 90f, margin + 180f, margin + 230f, margin + 290f, margin + 370f)
-                canvas.drawText("Nama", kolomX[0], y, paintHeader)
-                canvas.drawText("Tanggal", kolomX[1], y, paintHeader)
-                canvas.drawText("Jam", kolomX[2], y, paintHeader)
-                canvas.drawText("Jenis", kolomX[3], y, paintHeader)
-                canvas.drawText("Status", kolomX[4], y, paintHeader)
-                canvas.drawText("Keterangan", kolomX[5], y, paintHeader)
+                canvas.drawText("Nama",        kolomX[0], y, paintHeader)
+                canvas.drawText("Tanggal",     kolomX[1], y, paintHeader)
+                canvas.drawText("Jam",         kolomX[2], y, paintHeader)
+                canvas.drawText("Jenis",       kolomX[3], y, paintHeader)
+                canvas.drawText("Status",      kolomX[4], y, paintHeader)
+                canvas.drawText("Keterangan",  kolomX[5], y, paintHeader)
                 y += 6f
                 canvas.drawLine(margin, y, pageWidth - margin, y, paintGaris)
                 y += 14f
@@ -285,12 +368,12 @@ class LaporanActivity : AppCompatActivity() {
                 val jam = SimpleDateFormat("HH:mm", Locale.getDefault()).format(absensi.timestamp)
                 val keterangan = absensi.keterangan ?: "-"
 
-                canvas.drawText(nama.take(14), kolomX[0], y, paintIsi)
-                canvas.drawText(absensi.tanggal, kolomX[1], y, paintIsi)
-                canvas.drawText(jam, kolomX[2], y, paintIsi)
-                canvas.drawText(absensi.jenisAbsen, kolomX[3], y, paintIsi)
-                canvas.drawText(absensi.status.take(12), kolomX[4], y, paintIsi)
-                canvas.drawText(keterangan.take(14), kolomX[5], y, paintIsi)
+                canvas.drawText(nama.take(14),             kolomX[0], y, paintIsi)
+                canvas.drawText(absensi.tanggal,           kolomX[1], y, paintIsi)
+                canvas.drawText(jam,                       kolomX[2], y, paintIsi)
+                canvas.drawText(absensi.jenisAbsen,        kolomX[3], y, paintIsi)
+                canvas.drawText(absensi.status.take(12),   kolomX[4], y, paintIsi)
+                canvas.drawText(keterangan.take(14),       kolomX[5], y, paintIsi)
                 y += 16f
             }
 
@@ -307,8 +390,10 @@ class LaporanActivity : AppCompatActivity() {
             }
 
             pdfDocument.close()
+
         } catch (e: Exception) {
-            Toast.makeText(this, "Gagal export PDF: ${e.message}", Toast.LENGTH_LONG).show()
+            pdfDocument.close() // Pastikan resource ditutup meski gagal
+            Toast.makeText(this, pesanErrorPenyimpanan(e), Toast.LENGTH_LONG).show()
         }
     }
-    }
+}

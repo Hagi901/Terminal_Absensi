@@ -5,86 +5,98 @@
     android:layout_height="match_parent"
     android:background="@android:color/black">
 
+    <!-- Kamera preview -->
     <androidx.camera.view.PreviewView
         android:id="@+id/previewView"
         android:layout_width="match_parent"
         android:layout_height="match_parent" />
 
+    <!-- Overlay bounding box wajah -->
     <com.example.terminalabsensi.presentation.attendance.FaceOverlayView
         android:id="@+id/faceOverlayView"
         android:layout_width="match_parent"
         android:layout_height="match_parent" />
 
-    <!-- Header: jam & nama toko -->
-    <TextView
-        android:id="@+id/tvJam"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_gravity="top|end"
-        android:layout_margin="16dp"
-        android:background="#80000000"
-        android:paddingHorizontal="16dp"
-        android:paddingVertical="8dp"
-        android:text="00:00"
-        android:textColor="@android:color/white"
-        android:textSize="20sp" />
-
-    <!-- Status normal (standby/deteksi) -->
-    <TextView
-        android:id="@+id/tvStatus"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_gravity="bottom|center_horizontal"
-        android:layout_marginBottom="32dp"
-        android:background="#80000000"
-        android:paddingHorizontal="16dp"
-        android:paddingVertical="8dp"
-        android:text="Arahkan wajah ke kamera"
-        android:textColor="@android:color/white"
-        android:textSize="16sp" />
-
-    <!-- Overlay hasil (sukses/gagal/sudah lengkap) -->
+    <!-- ========== HEADER ATAS ========== -->
     <LinearLayout
-        android:id="@+id/overlayHasil"
         android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:orientation="vertical"
-        android:gravity="center"
-        android:background="#E6000000"
-        android:visibility="gone">
+        android:layout_height="wrap_content"
+        android:layout_gravity="top"
+        android:background="#CC000000"
+        android:orientation="horizontal"
+        android:paddingHorizontal="20dp"
+        android:paddingVertical="12dp"
+        android:gravity="center_vertical">
 
+        <!-- Ikon wajah -->
         <TextView
-            android:id="@+id/tvIkonHasil"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="✓"
-            android:textSize="72sp"
-            android:textColor="@android:color/white"
-            android:layout_marginBottom="16dp" />
-
-        <TextView
-            android:id="@+id/tvNamaHasil"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="Nama Karyawan"
+            android:text=""
             android:textSize="28sp"
-            android:textStyle="bold"
-            android:textColor="@android:color/white"
-            android:layout_marginBottom="8dp" />
+            android:layout_marginEnd="12dp" />
 
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:orientation="vertical">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Terminal Presensi"
+                android:textColor="#FFFFFF"
+                android:textSize="18sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Arahkan wajah ke kamera untuk presensi"
+                android:textColor="#AAAAAA"
+                android:textSize="12sp" />
+
+        </LinearLayout>
+
+        <!-- Jam digital -->
         <TextView
-            android:id="@+id/tvPesanHasil"
+            android:id="@+id/tvJam"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="Absen Masuk — Tepat Waktu"
-            android:textSize="20sp"
-            android:textColor="@android:color/white" />
+            android:text="00:00"
+            android:textColor="#42A5F5"
+            android:textSize="26sp"
+            android:textStyle="bold"
+            android:fontFamily="monospace" />
 
     </LinearLayout>
 
-    <!-- Overlay pilihan keterangan pulang cepat -->
+    <!-- ========== STATUS BAWAH ========== -->
     <LinearLayout
-        android:id="@+id/overlayKeterangan"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom"
+        android:background="#CC000000"
+        android:gravity="center"
+        android:paddingVertical="16dp"
+        android:paddingHorizontal="24dp">
+
+        <TextView
+            android:id="@+id/tvStatus"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Arahkan wajah ke kamera"
+            android:textColor="#FFFFFF"
+            android:textSize="16sp"
+            android:gravity="center"
+            android:drawablePadding="8dp" />
+
+    </LinearLayout>
+
+    <!-- ========== OVERLAY HASIL (Sukses / Gagal / Netral) ========== -->
+    <LinearLayout
+        android:id="@+id/overlayHasil"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:orientation="vertical"
@@ -93,63 +105,168 @@
         android:padding="32dp"
         android:visibility="gone">
 
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="Anda pulang lebih awal. Pilih alasan:"
-            android:textSize="20sp"
-            android:textColor="@android:color/white"
-            android:layout_marginBottom="24dp" />
-
+        <!-- Kartu hasil -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:layout_marginBottom="16dp">
+            android:orientation="vertical"
+            android:gravity="center"
+            android:background="#FFFFFF"
+            android:padding="32dp">
 
-            <Button
-                android:id="@+id/btnIzin"
-                android:layout_width="0dp"
+            <!-- Ikon besar -->
+            <TextView
+                android:id="@+id/tvIkonHasil"
+                android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:layout_marginEnd="8dp"
-                android:text="Izin" />
+                android:text="✓"
+                android:textSize="72sp"
+                android:textColor="#2E7D32"
+                android:layout_marginBottom="12dp" />
 
-            <Button
-                android:id="@+id/btnSakit"
-                android:layout_width="0dp"
+            <!-- Nama karyawan -->
+            <TextView
+                android:id="@+id/tvNamaHasil"
+                android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:layout_marginHorizontal="8dp"
-                android:text="Sakit" />
+                android:text="Nama Karyawan"
+                android:textSize="26sp"
+                android:textStyle="bold"
+                android:textColor="#1A1A1A"
+                android:layout_marginBottom="8dp"
+                android:gravity="center" />
 
-            <Button
-                android:id="@+id/btnLainnya"
-                android:layout_width="0dp"
+            <!-- Garis pemisah -->
+            <View
+                android:layout_width="60dp"
+                android:layout_height="3dp"
+                android:background="#42A5F5"
+                android:layout_marginBottom="12dp" />
+
+            <!-- Pesan status -->
+            <TextView
+                android:id="@+id/tvPesanHasil"
+                android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:layout_marginStart="8dp"
-                android:text="Lainnya" />
+                android:text="Presensi Masuk — Tepat Waktu"
+                android:textSize="16sp"
+                android:textColor="#555555"
+                android:gravity="center" />
 
         </LinearLayout>
 
-        <ProgressBar
-            android:id="@+id/progressTimeout"
-            style="?android:attr/progressBarStyleHorizontal"
+    </LinearLayout>
+
+    <!-- ========== OVERLAY KETERANGAN PULANG CEPAT ========== -->
+    <LinearLayout
+        android:id="@+id/overlayKeterangan"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="vertical"
+        android:gravity="center"
+        android:background="#E6000000"
+        android:padding="24dp"
+        android:visibility="gone">
+
+        <!-- Kartu pilihan -->
+        <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:max="15"
-            android:progress="15"
-            android:layout_marginBottom="16dp" />
+            android:orientation="vertical"
+            android:background="#FFFFFF"
+            android:padding="24dp">
 
-        <Button
-            android:id="@+id/btnLewati"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_gravity="center"
-            android:text="Lewati"
-            android:textColor="#AAAAAA"
-            android:background="@android:color/transparent" />
+            <!-- Judul -->
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Pulang Lebih Awal"
+                android:textSize="20sp"
+                android:textStyle="bold"
+                android:textColor="#E65100"
+                android:gravity="center"
+                android:layout_marginBottom="6dp" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Pilih alasan kepulangan:"
+                android:textSize="14sp"
+                android:textColor="#777777"
+                android:gravity="center"
+                android:layout_marginBottom="20dp" />
+
+            <!-- Tombol-tombol alasan -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:layout_marginBottom="16dp">
+
+                <Button
+                    android:id="@+id/btnIzin"
+                    android:layout_width="0dp"
+                    android:layout_height="56dp"
+                    android:layout_weight="1"
+                    android:layout_marginEnd="6dp"
+                    android:text="Izin"
+                    android:textSize="14sp"
+                    android:backgroundTint="#1565C0" />
+
+                <Button
+                    android:id="@+id/btnSakit"
+                    android:layout_width="0dp"
+                    android:layout_height="56dp"
+                    android:layout_weight="1"
+                    android:layout_marginHorizontal="6dp"
+                    android:text="Sakit"
+                    android:textSize="14sp"
+                    android:backgroundTint="#2E7D32" />
+
+                <Button
+                    android:id="@+id/btnLainnya"
+                    android:layout_width="0dp"
+                    android:layout_height="56dp"
+                    android:layout_weight="1"
+                    android:layout_marginStart="6dp"
+                    android:text="Lainnya"
+                    android:textSize="14sp"
+                    android:backgroundTint="#6A1B9A" />
+
+            </LinearLayout>
+
+            <!-- Progress timeout -->
+            <ProgressBar
+                android:id="@+id/progressTimeout"
+                style="?android:attr/progressBarStyleHorizontal"
+                android:layout_width="match_parent"
+                android:layout_height="8dp"
+                android:max="15"
+                android:progress="15"
+                android:progressTint="#42A5F5"
+                android:layout_marginBottom="12dp" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Otomatis &quot;Tanpa Keterangan&quot; jika tidak dipilih"
+                android:textSize="11sp"
+                android:textColor="#AAAAAA"
+                android:gravity="center"
+                android:layout_marginBottom="8dp" />
+
+            <!-- Tombol lewati -->
+            <Button
+                android:id="@+id/btnLewati"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center_horizontal"
+                android:text="Lewati"
+                android:textColor="#AAAAAA"
+                android:background="@android:color/transparent"
+                android:textSize="13sp" />
+
+        </LinearLayout>
 
     </LinearLayout>
 

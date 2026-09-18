@@ -4,72 +4,135 @@
     android:layout_height="match_parent"
     android:orientation="vertical"
     android:gravity="center"
-    android:background="@android:color/white"
-    android:padding="24dp">
+    android:background="#F5F5F5"
+    android:padding="32dp">
 
+    <!-- ikon kunci -->
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text=""
+        android:textSize="56sp"
+        android:layout_marginBottom="16dp" />
+
+    <!-- judul -->
     <TextView
         android:id="@+id/tvJudul"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:text="Masuk Admin"
-        android:textSize="22sp"
+        android:textSize="24sp"
         android:textStyle="bold"
-        android:textColor="@android:color/black"
-        android:layout_marginBottom="8dp" />
+        android:textColor="#1565C0"
+        android:layout_marginBottom="6dp" />
 
+    <!-- subjudul -->
     <TextView
         android:id="@+id/tvSubjudul"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="Masukkan PIN Admin"
-        android:textColor="#666666"
-        android:layout_marginBottom="24dp" />
+        android:text="Masukkan PIN untuk melanjutkan"
+        android:textColor="#888888"
+        android:textSize="14sp"
+        android:layout_marginBottom="32dp" />
 
-    <EditText
-        android:id="@+id/etPin"
-        android:layout_width="200dp"
+    <!-- Kartu form -->
+    <LinearLayout
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:inputType="numberPassword"
-        android:gravity="center"
-        android:textSize="24sp"
-        android:textColor="@android:color/black"
-        android:background="#F0F0F0"
-        android:padding="16dp"
-        android:hint="PIN"
-        android:layout_marginBottom="8dp" />
+        android:orientation="vertical"
+        android:background="#FFFFFF"
+        android:padding="24dp"
+        android:elevation="4dp">
 
-    <EditText
-        android:id="@+id/etKonfirmasiPin"
-        android:layout_width="200dp"
-        android:layout_height="wrap_content"
-        android:inputType="numberPassword"
-        android:gravity="center"
-        android:textSize="24sp"
-        android:textColor="@android:color/black"
-        android:background="#F0F0F0"
-        android:padding="16dp"
-        android:hint="Konfirmasi PIN"
-        android:visibility="gone"
-        android:layout_marginBottom="16dp" />
+        <!-- Input PIN -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="PIN Admin"
+            android:textSize="12sp"
+            android:textColor="#888888"
+            android:layout_marginBottom="4dp" />
 
+        <EditText
+            android:id="@+id/etPin"
+            android:layout_width="match_parent"
+            android:layout_height="52dp"
+            android:inputType="numberPassword"
+            android:gravity="center"
+            android:textSize="22sp"
+            android:textColor="#1A1A1A"
+            android:background="#F5F5F5"
+            android:padding="12dp"
+            android:hint="••••••"
+            android:textColorHint="#CCCCCC"
+            android:layout_marginBottom="16dp" />
+
+        <!-- Input Konfirmasi PIN (hanya muncul saat setup pertama) -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Konfirmasi PIN"
+            android:textSize="12sp"
+            android:textColor="#888888"
+            android:layout_marginBottom="4dp"
+            android:visibility="gone" />
+
+        <EditText
+            android:id="@+id/etKonfirmasiPin"
+            android:layout_width="match_parent"
+            android:layout_height="52dp"
+            android:inputType="numberPassword"
+            android:gravity="center"
+            android:textSize="22sp"
+            android:textColor="#1A1A1A"
+            android:background="#F5F5F5"
+            android:padding="12dp"
+            android:hint="••••••"
+            android:textColorHint="#CCCCCC"
+            android:visibility="gone"
+            android:layout_marginBottom="16dp" />
+
+        <!-- Pesan error -->
+        <TextView
+            android:id="@+id/tvError"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textColor="#C62828"
+            android:textSize="13sp"
+            android:gravity="center"
+            android:layout_marginBottom="16dp" />
+
+        <!-- Tombol Masuk -->
+        <Button
+            android:id="@+id/btnMasuk"
+            android:layout_width="match_parent"
+            android:layout_height="52dp"
+            android:text="Masuk"
+            android:textSize="16sp"
+            android:textStyle="bold"
+            android:backgroundTint="#1565C0"
+            android:layout_marginBottom="8dp" />
+
+        <!-- Tombol Batal -->
+        <Button
+            android:id="@+id/btnBatal"
+            android:layout_width="match_parent"
+            android:layout_height="52dp"
+            android:text="Batal"
+            android:textSize="14sp"
+            android:backgroundTint="#E0E0E0"
+            android:textColor="#555555" />
+
+    </LinearLayout>
+
+    <!-- catatan kecil bawah -->
     <TextView
-        android:id="@+id/tvError"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:textColor="#D32F2F"
-        android:layout_marginBottom="16dp" />
-
-    <Button
-        android:id="@+id/btnMasuk"
-        android:layout_width="200dp"
-        android:layout_height="wrap_content"
-        android:text="Masuk" />
-
-    <Button
-        android:id="@+id/btnBatal"
-        android:layout_width="200dp"
-        android:layout_height="wrap_content"
-        android:text="Batal"
-        android:layout_marginTop="8dp" />
+        android:text="Akses terbatas — hanya untuk administrator"
+        android:textSize="11sp"
+        android:textColor="#BBBBBB"
+        android:layout_marginTop="24dp" />
 
 </LinearLayout>
