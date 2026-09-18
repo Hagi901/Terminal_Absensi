@@ -14,3 +14,6 @@ local.properties
 *.zip
 opencv/build/
 opencv/.cxx/
+
+keystore.properties
+*.jks
