@@ -121,7 +121,7 @@ class AttendanceActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_attendance)
 
-        // ===== KIOSK MODE =====
+        // ===== KIOSK MODE: Full screen & layar tetap menyala =====
         try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
                 window.insetsController?.let { controller ->
@@ -149,16 +149,12 @@ class AttendanceActivity : AppCompatActivity() {
         }
         // ===== AKHIR KIOSK MODE =====
 
-        previewView = findViewById(R.id.previewView)
-        // ... sisa kode tetap sama
-
-        setContentView(R.layout.activity_attendance)
-
+        // Blokir tombol Back pada mode kiosk
         onBackPressedDispatcher.addCallback(
             this,
             object : androidx.activity.OnBackPressedCallback(true) {
                 override fun handleOnBackPressed() {
-                    // Sengaja dikosongkan — kiosk tidak boleh keluar
+                    // Sengaja dikosongkan — kiosk tidak boleh keluar sembarangan
                 }
             }
         )
@@ -210,13 +206,11 @@ class AttendanceActivity : AppCompatActivity() {
             }
         }
 
-        if (hasCameraPermission()) {
-            startCamera()
-        } else {
+        // Jika belum ada izin, minta izin kamera. Jika sudah ada, kamera akan distart otomatis oleh onResume()
+        if (!hasCameraPermission()) {
             requestCameraPermission.launch(Manifest.permission.CAMERA)
         }
     }
-
 
     override fun onResume() {
         super.onResume()

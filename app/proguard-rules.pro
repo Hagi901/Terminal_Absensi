@@ -1,21 +1,33 @@
-# Add project specific ProGuard rules here.
-# You can control the set of applied configuration files using the
-# proguardFiles setting in build.gradle.
-#
-# For more details, see
-#   http://developer.android.com/guide/developing/tools/proguard.html
+# ===================================================================
+# ProGuard / R8 Rules untuk Terminal Absensi
+# ===================================================================
 
-# If your project uses WebView with JS, uncomment the following
-# and specify the fully qualified class name to the JavaScript interface
-# class:
-#-keepclassmembers class fqcn.of.javascript.interface.for.webview {
-#   public *;
-#}
+# 1. OpenCV JNI (Wajib agar C++ native binding tidak terpotong R8)
+-keep class org.opencv.** { *; }
+-dontwarn org.opencv.**
 
-# Uncomment this to preserve the line number information for
-# debugging stack traces.
-#-keepattributes SourceFile,LineNumberTable
+# 2. Room Database & Entities
+-keep class androidx.room.** { *; }
+-dontwarn androidx.room.**
+-keep class * extends androidx.room.RoomDatabase
+-keep @androidx.room.Entity class * { *; }
+-keep @androidx.room.Dao interface * { *; }
+-keepclassmembers class * {
+    @androidx.room.TypeConverter *;
+}
+-keep class com.example.terminalabsensi.data.local.** { *; }
 
-# If you keep the line number information, uncomment this to
-# hide the original source file name.
-#-renamesourcefileattribute SourceFile
+# 3. Koin Dependency Injection
+-keep class org.koin.** { *; }
+-dontwarn org.koin.**
+
+# 4. CameraX
+-keep class androidx.camera.** { *; }
+-dontwarn androidx.camera.**
+
+# 5. Model Classes & UseCases
+-keep class com.example.terminalabsensi.domain.** { *; }
+-keep class com.example.terminalabsensi.facerecognition.** { *; }
+
+# 6. Preserve Annotations & Signatures
+-keepattributes *Annotation*,Signature,InnerClasses,EnclosingMethod

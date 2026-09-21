@@ -31,6 +31,7 @@ val appModule = module {
 
     // Menyediakan instance FaceDetector secara tunggal (Singleton),
     // supaya cascade classifier cukup di-load sekali selama app hidup
+    // Model AI Computer Vision (YuNet & SFace)
     single { FaceEmbedder(get()) }
     single { FaceDetectorYNWrapper(get()) }
 

@@ -222,7 +222,7 @@ class LaporanActivity : AppCompatActivity() {
         for ((absensi, nama) in dataLaporanTerakhir) {
             val jam = SimpleDateFormat("HH:mm", Locale.getDefault()).format(absensi.timestamp)
             sb.append(
-                "${csvSafe(nama)},${absensi.tanggal},$jam," +
+                "${csvSafe(nama)},\"${absensi.tanggal}\",$jam," +
                         "${absensi.jenisAbsen},${csvSafe(absensi.status)}," +
                         "${csvSafe(absensi.keterangan ?: "")}," +
                         "${csvSafe(absensi.catatanTambahan ?: "")}," +

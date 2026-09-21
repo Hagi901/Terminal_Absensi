@@ -44,8 +44,7 @@ object FaceUtils {
 
     /**
      * Mengambil seluruh plane YUV dari ImageProxy dan mengonversinya jadi
-     * Mat berwarna (BGR), dibutuhkan oleh FaceEmbedder/FaceDetectorYN
-     * (butuh input berwarna, beda dari FaceDetector Haar yang cukup grayscale).
+     * Mat berwarna (BGR), dibutuhkan oleh model YuNet & SFace.
      *
      * PENTING: Plane U dan V pada YUV_420_888 seringkali punya pixelStride
      * > 1 (data tidak rapat berurutan di memori). Kode ini membaca piksel

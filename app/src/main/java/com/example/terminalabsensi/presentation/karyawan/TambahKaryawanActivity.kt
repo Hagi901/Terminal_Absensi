@@ -234,6 +234,16 @@ class TambahKaryawanActivity : AppCompatActivity() {
             }
             return
         }
+
+        // Cek ulang pose: pastikan wajah tidak berpaling sebelum frame tertangkap
+        val sudutTarget = sudutSaatIni()
+        if (lastPoseDetected != sudutTarget) {
+            runOnUiThread {
+                Toast.makeText(this, "Pose wajah berubah. Pastikan tetap menoleh ke ${sudutTarget.uppercase()}", Toast.LENGTH_SHORT).show()
+            }
+            return
+        }
+
         val embedding = lastEmbedding
         if (embedding == null) {
             runOnUiThread {
@@ -248,14 +258,14 @@ class TambahKaryawanActivity : AppCompatActivity() {
             tvProgress.text = "Sampel: ${sampelTersimpan.size}/${SUDUT_CAPTURE.size}"
             Toast.makeText(
                 this,
-                "Sampel sudut ${SUDUT_CAPTURE[sampelTersimpan.size - 1]} tersimpan",
+                "Sampel ${sudutTarget.uppercase()} berhasil disimpan",
                 Toast.LENGTH_SHORT
             ).show()
 
             if (sampelTersimpan.size >= SUDUT_CAPTURE.size) {
+                tvInstruksi.text = "Semua sampel wajah sudah lengkap! Silakan tekan Simpan Karyawan."
+                tvInstruksi.setTextColor(0xFF4CAF50.toInt())
                 btnAmbilSampel.isEnabled = false
-                btnSimpan.isEnabled = true
-                tvInstruksi.text = "Sampel lengkap. Tekan Simpan Karyawan"
             }
         }
     }

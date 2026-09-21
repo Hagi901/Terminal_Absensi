@@ -11,13 +11,8 @@ import java.io.FileOutputStream
 
 /**
  * FaceEmbedder membungkus FaceRecognizerSF (model SFace) untuk mengubah
- * wajah yang sudah terdeteksi (Rect dari FaceDetector) menjadi embedding
- * (128 angka float) yang bisa dibandingkan antar wajah.
- *
- * Catatan: versi ini menggunakan crop + resize langsung dari bounding box
- * cascade classifier (tanpa 5-landmark alignment dari YuNet), sebagai
- * pendekatan MVP. Bisa di-upgrade ke alignment penuh nanti jika akurasi
- * dirasa kurang.
+ * wajah yang sudah terdeteksi dan di-align (alignCrop) menggunakan landmark dari YuNet
+ * menjadi feature vector / embedding (128 angka float) untuk pencocokan wajah.
  */
 class FaceEmbedder(private val context: Context) {
 
@@ -67,15 +62,7 @@ class FaceEmbedder(private val context: Context) {
         }
     }
 
-    /**
-     * Mengekstrak embedding dari satu wajah pada frame.
-     *
-     * @param colorFrame Mat BERWARNA (BGR/RGB), BUKAN grayscale — model
-     *                   SFace butuh input berwarna, beda dari cascade
-     *                   classifier yang butuh grayscale.
-     * @param faceRect Bounding box wajah hasil deteksi (dari FaceDetector).
-     * @return FloatArray embedding (128 dimensi), atau null jika gagal.
-     */
+
     fun extractEmbedding(colorFrame: Mat, faceRect: Rect): FloatArray? {
         val rec = recognizer
         if (rec == null || !isInitialized) {

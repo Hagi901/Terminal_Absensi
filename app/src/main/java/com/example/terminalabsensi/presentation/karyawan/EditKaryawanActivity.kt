@@ -102,7 +102,7 @@ class EditKaryawanActivity : AppCompatActivity() {
     private fun onKlikHapus() {
         AlertDialog.Builder(this)
             .setTitle("Hapus Karyawan")
-            .setMessage("Yakin ingin menghapus karyawan ini? Seluruh data wajah dan riwayat absensinya akan ikut terhapus. Tindakan ini tidak dapat dibatalkan.")
+            .setMessage("Yakin ingin menghapus karyawan ini? Seluruh data wajah dan riwayat presensinya akan ikut terhapus. Tindakan ini tidak dapat dibatalkan.")
             .setPositiveButton("Hapus") { _, _ -> hapusKaryawan() }
             .setNegativeButton("Batal", null)
             .show()
