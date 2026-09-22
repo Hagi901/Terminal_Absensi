@@ -195,7 +195,7 @@ class AttendanceActivity : AppCompatActivity() {
                 }
                 runOnUiThread {
                     AlertDialog.Builder(this)
-                        .setTitle("⚠️ Sistem Tidak Siap")
+                        .setTitle("Sistem Tidak Siap")
                         .setMessage(pesanGagal.trim())
                         .setCancelable(false)
                         .setPositiveButton("Tutup Aplikasi") { _, _ -> finish() }

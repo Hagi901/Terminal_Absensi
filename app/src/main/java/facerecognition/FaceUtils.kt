@@ -10,12 +10,6 @@ import org.opencv.imgproc.Imgproc
 object FaceUtils {
 
     /**
-     * Mengambil Y-plane (luminance) dari ImageProxy format YUV_420_888
-     * dan mengubahnya jadi Mat grayscale OpenCV (CV_8UC1).
-     */
-
-
-    /**
      * Memutar Mat sesuai rotationDegrees dari ImageInfo CameraX.
      */
     fun rotateMat(mat: Mat, rotationDegrees: Int): Mat {

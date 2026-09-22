@@ -217,16 +217,15 @@ class LaporanActivity : AppCompatActivity() {
         val sb = StringBuilder()
         // "sep=," memberitahu Excel bahwa pemisah kolom adalah koma
         sb.append("sep=,\n")
-        sb.append("Nama,Tanggal,Jam,Jenis,Status,Keterangan,Catatan Tambahan,ID Karyawan\n")
+        sb.append("ID Karyawan,Nama,Tanggal,Jam,Jenis,Status,Keterangan,Catatan Tambahan\n")
 
         for ((absensi, nama) in dataLaporanTerakhir) {
             val jam = SimpleDateFormat("HH:mm", Locale.getDefault()).format(absensi.timestamp)
             sb.append(
-                "${csvSafe(nama)},\"${absensi.tanggal}\",$jam," +
+                "${csvPaksaTeks(absensi.idKaryawan)},${csvSafe(nama)},${csvPaksaTeks(absensi.tanggal)},$jam," +
                         "${absensi.jenisAbsen},${csvSafe(absensi.status)}," +
                         "${csvSafe(absensi.keterangan ?: "")}," +
-                        "${csvSafe(absensi.catatanTambahan ?: "")}," +
-                        "\"${absensi.idKaryawan}\"\n"
+                        "${csvSafe(absensi.catatanTambahan ?: "")}\n"
             )
         }
 
@@ -246,6 +245,11 @@ class LaporanActivity : AppCompatActivity() {
         } catch (e: Exception) {
             Toast.makeText(this, pesanErrorPenyimpanan(e), Toast.LENGTH_LONG).show()
         }
+    }
+
+    /** Membungkus nilai jadi ="..." supaya Excel menganggapnya teks (bukan tanggal/angka) */
+    private fun csvPaksaTeks(teks: String): String {
+        return "=\"${teks.replace("\"", "\"\"")}\""
     }
 
     /** Menangani karakter khusus CSV (koma, kutip) supaya file tidak rusak */

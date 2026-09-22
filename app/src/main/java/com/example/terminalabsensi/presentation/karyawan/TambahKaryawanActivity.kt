@@ -167,6 +167,9 @@ class TambahKaryawanActivity : AppCompatActivity() {
             }
 
             runOnUiThread {
+                // Semua sampel sudah lengkap: jangan timpa pesan "sampel lengkap"
+                if (sampelTersimpan.size >= SUDUT_CAPTURE.size) return@runOnUiThread
+
                 val sudutTarget = sudutSaatIni()
                 val poseSesuai = lastPoseDetected == sudutTarget
 
@@ -266,6 +269,7 @@ class TambahKaryawanActivity : AppCompatActivity() {
                 tvInstruksi.text = "Semua sampel wajah sudah lengkap! Silakan tekan Simpan Karyawan."
                 tvInstruksi.setTextColor(0xFF4CAF50.toInt())
                 btnAmbilSampel.isEnabled = false
+                btnSimpan.isEnabled = true
             }
         }
     }

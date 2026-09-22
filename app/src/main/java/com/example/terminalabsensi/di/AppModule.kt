@@ -29,9 +29,8 @@ val appModule = module {
     single { get<AppDatabase>().adminDao() }
     single { get<AppDatabase>().konfigurasiDao() }
 
-    // Menyediakan instance FaceDetector secara tunggal (Singleton),
-    // supaya cascade classifier cukup di-load sekali selama app hidup
-    // Model AI Computer Vision (YuNet & SFace)
+
+    // Model AI Computer Vision (YuNet & SFace), di-load sekali selama app hidup
     single { FaceEmbedder(get()) }
     single { FaceDetectorYNWrapper(get()) }
 
