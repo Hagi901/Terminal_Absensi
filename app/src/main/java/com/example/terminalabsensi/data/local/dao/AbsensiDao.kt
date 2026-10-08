@@ -22,6 +22,10 @@ interface AbsensiDao {
     @Query("SELECT * FROM absensi WHERE idKaryawan = :idKaryawan ORDER BY timestamp DESC LIMIT 1")
     suspend fun getTransaksiTerakhir(idKaryawan: String): Absensi?
 
+    // Dipakai sebelum menghapus karyawan: berapa banyak riwayat presensi yang akan ikut hilang
+    @Query("SELECT COUNT(*) FROM absensi WHERE idKaryawan = :idKaryawan")
+    suspend fun countByKaryawan(idKaryawan: String): Int
+
     // Dipakai untuk modul laporan (FR-3.3.1 - FR-3.3.2): filter rentang tanggal
     @Query("SELECT * FROM absensi WHERE tanggal BETWEEN :tanggalMulai AND :tanggalAkhir ORDER BY tanggal ASC, timestamp ASC")
     fun getByRentangTanggal(tanggalMulai: String, tanggalAkhir: String): Flow<List<Absensi>>
@@ -37,10 +41,6 @@ interface AbsensiDao {
             keteranganDiubahOleh = :diubahOleh, keteranganDiubahPada = :diubahPada
         WHERE idAbsensi = :idAbsensi
     """)
-
-    @Query("SELECT COUNT(*) FROM absensi WHERE idKaryawan = :idKaryawan")
-    suspend fun countByKaryawan(idKaryawan: String): Int
-
     suspend fun updateKeterangan(
         idAbsensi: String,
         keterangan: String,

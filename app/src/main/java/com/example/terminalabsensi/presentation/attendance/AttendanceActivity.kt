@@ -28,8 +28,8 @@ import androidx.camera.view.PreviewView
 import androidx.core.content.ContextCompat
 import com.example.terminalabsensi.R
 import com.example.terminalabsensi.data.local.dao.AbsensiDao
-import com.example.terminalabsensi.data.local.entity.Absensi
 import com.example.terminalabsensi.data.local.dao.KonfigurasiDao
+import com.example.terminalabsensi.data.local.entity.Absensi
 import com.example.terminalabsensi.data.local.entity.Konfigurasi
 import com.example.terminalabsensi.domain.usecase.CariKaryawanDenganWajahUseCase
 import com.example.terminalabsensi.domain.usecase.TentukanJenisAbsensiUseCase
@@ -39,6 +39,7 @@ import com.example.terminalabsensi.facerecognition.FaceDetectorYNWrapper
 import com.example.terminalabsensi.facerecognition.FaceEmbedder
 import com.example.terminalabsensi.facerecognition.FaceUtils
 import com.example.terminalabsensi.presentation.admin.AdminLoginActivity
+import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -56,6 +57,8 @@ class AttendanceActivity : AppCompatActivity() {
 
     companion object {
         private const val TAG = "AttendanceActivity"
+        // Batas aman agar nilai konfigurasi yang rusak/ekstrem tidak membuat sistem
+        // menerima semua wajah (terlalu rendah) atau menolak semua wajah (terlalu tinggi).
         private const val THRESHOLD_MIN = 0.3f
         private const val THRESHOLD_MAX = 0.9f
         private const val COOLDOWN_MS = 5000L
@@ -339,6 +342,15 @@ class AttendanceActivity : AppCompatActivity() {
                     .coerceIn(THRESHOLD_MIN, THRESHOLD_MAX)
                 val hasilPencarian = cariKaryawanDenganWajahUseCase(embeddingWajah, threshold)
 
+                if (hasilPencarian == null) {
+                    tampilkanOverlayHasil(
+                        tipe = TipeOverlay.GAGAL,
+                        nama = "",
+                        pesan = "Wajah tidak dikenali, silakan coba lagi"
+                    )
+                    return@launch
+                }
+
                 val idKaryawan = hasilPencarian.karyawan.idKaryawan
                 val namaKaryawan = hasilPencarian.karyawan.nama
                 val confidenceScore = hasilPencarian.confidenceScore
@@ -379,20 +391,14 @@ class AttendanceActivity : AppCompatActivity() {
                         }
                     }
                 }
+            } catch (e: CancellationException) {
+                throw e // activity ditutup -- biarkan coroutine berhenti normal
             } catch (e: Exception) {
                 Log.e(TAG, "Error saat memproses absensi", e)
                 tampilkanOverlayHasil(tipe = TipeOverlay.GAGAL, nama = "", pesan = "Terjadi kesalahan, coba lagi")
             } finally {
                 sedangMemprosesAbsensi = false
             }
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: Exception) {
-            Log.e(TAG, "Error saat memproses absensi", e)
-            tampilkanOverlayHasil(tipe = TipeOverlay.GAGAL, nama = "", pesan = "Terjadi kesalahan, coba lagi")
-        } finally {
-            sedangMemprosesAbsensi = false
-        }
         }
     }
 

@@ -5,15 +5,14 @@ import android.widget.Button
 import android.widget.EditText
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
-import androidx.lifecycle.lifecycleScope
 import com.example.terminalabsensi.R
 import com.example.terminalabsensi.data.local.dao.KonfigurasiDao
 import com.example.terminalabsensi.data.local.entity.Konfigurasi
 import com.example.terminalabsensi.domain.usecase.AutentikasiAdminUseCase
-import kotlinx.coroutines.CoroutineScope
+import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.koin.android.ext.android.inject
 
 class PengaturanActivity : AppCompatActivity() {
@@ -59,6 +58,10 @@ class PengaturanActivity : AppCompatActivity() {
         return h.toInt() * 60 + m.toInt()
     }
 
+    private fun formatJamValid(jam: String): Boolean {
+        return Regex("^([01]\\d|2[0-3]):[0-5]\\d$").matches(jam)
+    }
+
     private fun onKlikSimpanJamKerja() {
         val jamMulai = etJamMulai.text.toString().trim()
         val batasTelat = etBatasTelat.text.toString().trim()
@@ -73,25 +76,17 @@ class PengaturanActivity : AppCompatActivity() {
         val menitBatasTelat = menitDariJam(batasTelat)
         val menitPulang = menitDariJam(jamPulang)
         if (menitBatasTelat < menitMulai) {
-            Toast.makeText(
-                this,
-                "Batas toleransi telat tidak boleh lebih awal dari jam mulai kerja",
-                Toast.LENGTH_LONG
-            ).show()
+            Toast.makeText(this, "Batas toleransi telat tidak boleh lebih awal dari jam mulai kerja", Toast.LENGTH_LONG).show()
             return
         }
         if (menitPulang <= menitBatasTelat) {
-            Toast.makeText(
-                this,
-                "Jam pulang harus lebih akhir dari batas toleransi telat",
-                Toast.LENGTH_LONG
-            ).show()
+            Toast.makeText(this, "Jam pulang harus lebih akhir dari batas toleransi telat", Toast.LENGTH_LONG).show()
             return
         }
 
         lifecycleScope.launch {
             withContext(Dispatchers.IO) {
-                // Pertahankan field lain (mis. thresholdConfidence), jangan dibuat ulang dari default
+                // Pertahankan field lain (mis. thresholdConfidence) -- jangan dibuat ulang dari default.
                 val lama = konfigurasiDao.get() ?: Konfigurasi()
                 konfigurasiDao.insertOrUpdate(
                     lama.copy(
@@ -101,11 +96,7 @@ class PengaturanActivity : AppCompatActivity() {
                     )
                 )
             }
-            Toast.makeText(
-                this@PengaturanActivity,
-                "Jam kerja berhasil disimpan",
-                Toast.LENGTH_SHORT
-            ).show()
+            Toast.makeText(this@PengaturanActivity, "Jam kerja berhasil disimpan", Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -128,8 +119,7 @@ class PengaturanActivity : AppCompatActivity() {
                 autentikasiAdminUseCase.ubahPin(pinLama, pinBaru)
             }
             if (berhasil) {
-                Toast.makeText(this@PengaturanActivity, "PIN berhasil diubah", Toast.LENGTH_SHORT)
-                    .show()
+                Toast.makeText(this@PengaturanActivity, "PIN berhasil diubah", Toast.LENGTH_SHORT).show()
                 etPinLama.text.clear()
                 etPinBaru.text.clear()
                 etKonfirmasiPinBaru.text.clear()
