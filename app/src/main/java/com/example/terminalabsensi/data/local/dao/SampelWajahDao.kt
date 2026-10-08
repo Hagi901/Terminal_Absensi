@@ -3,6 +3,10 @@ package com.example.terminalabsensi.data.local.dao
 import androidx.room.*
 import com.example.terminalabsensi.data.local.entity.SampelWajah
 
+data class JumlahSampel(
+    val idKaryawan: String,
+    val jumlah: Int
+)
 @Dao
 interface SampelWajahDao {
 
@@ -26,4 +30,7 @@ interface SampelWajahDao {
 
     @Query("SELECT COUNT(*) FROM sampel_wajah WHERE idKaryawan = :idKaryawan")
     suspend fun countByKaryawan(idKaryawan: String): Int
+
+    @Query("SELECT idKaryawan, COUNT(*) AS jumlah FROM sampel_wajah GROUP BY idKaryawan")
+    suspend fun countPerKaryawan(): List<JumlahSampel>
 }

@@ -10,9 +10,12 @@ import androidx.appcompat.app.AppCompatActivity
 import com.example.terminalabsensi.data.local.dao.KaryawanDao
 import com.example.terminalabsensi.data.local.dao.SampelWajahDao
 import com.example.terminalabsensi.R
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.repeatOnLifecycle
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.Dispatchers
+
 import kotlinx.coroutines.launch
 import org.koin.android.ext.android.inject
 
@@ -37,22 +40,27 @@ class DaftarKaryawanActivity : AppCompatActivity() {
     }
 
     private fun muatDaftarKaryawan() {
-        CoroutineScope(Dispatchers.IO).launch {
-            karyawanDao.getAll().collectLatest { daftarKaryawan ->
-                val dataBaris = mutableListOf<Triple<String, String, Int>>()
-                for (karyawan in daftarKaryawan) {
-                    val jumlahSampel = sampelWajahDao.countByKaryawan(karyawan.idKaryawan)
-                    val statusText = if (karyawan.statusAktif) "Aktif" else "Nonaktif"
-                    val ringkasan = "${karyawan.nama} (${karyawan.idKaryawan})\n${karyawan.jabatan ?: "-"} — $statusText — Sampel: $jumlahSampel"
-                    dataBaris.add(Triple(karyawan.idKaryawan, ringkasan, jumlahSampel))
-                }
+        // Aktif hanya saat layar terlihat; Flow Room otomatis menyiarkan ulang saat data berubah
+        lifecycleScope.launch {
+            repeatOnLifecycle(Lifecycle.State.STARTED) {
+                karyawanDao.getAll().collectLatest { daftarKaryawan ->
+                    val jumlahPerKaryawan = sampelWajahDao.countPerKaryawan()
+                        .associate { it.idKaryawan to it.jumlah }
 
-                runOnUiThread {
+                    val dataBaris = daftarKaryawan.map { karyawan ->
+                        val jumlahSampel = jumlahPerKaryawan[karyawan.idKaryawan] ?: 0
+                        val statusText = if (karyawan.statusAktif) "Aktif" else "Nonaktif"
+                        val ringkasan = "${karyawan.nama} (${karyawan.idKaryawan})\n" +
+                                "${karyawan.jabatan ?: "-"} — $statusText — Sampel: $jumlahSampel"
+                        Triple(karyawan.idKaryawan, ringkasan, jumlahSampel)
+                    }
+
                     tampilkanBaris(dataBaris)
                 }
             }
         }
     }
+
 
     private fun tampilkanBaris(dataBaris: List<Triple<String, String, Int>>) {
         container.removeAllViews()

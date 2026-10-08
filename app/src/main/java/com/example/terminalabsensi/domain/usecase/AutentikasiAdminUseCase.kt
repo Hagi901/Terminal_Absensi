@@ -33,7 +33,18 @@ class AutentikasiAdminUseCase(
 
     suspend fun login(pin: String): Boolean {
         val admin = adminDao.getByUsername(USERNAME_DEFAULT) ?: return false
-        return PasswordHasher.verify(pin, admin.pinPasswordHash)
+        if (!PasswordHasher.verify(pin, admin.pinPasswordHash)) return false
+
+        // Migrasi otomatis hash lama -> PBKDF2 selagi PIN yang benar tersedia
+        if (PasswordHasher.needsUpgrade(admin.pinPasswordHash)) {
+            adminDao.update(
+                admin.copy(
+                    pinPasswordHash = PasswordHasher.hash(pin),
+                    updatedAt = System.currentTimeMillis()
+                )
+            )
+        }
+        return true
     }
 
     suspend fun ubahPin(pinLama: String, pinBaru: String): Boolean {

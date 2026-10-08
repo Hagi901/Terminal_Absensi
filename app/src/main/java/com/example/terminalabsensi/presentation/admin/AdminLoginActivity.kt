@@ -1,28 +1,39 @@
 package com.example.terminalabsensi.presentation.admin
 
+import android.content.Context
+import android.content.SharedPreferences
 import android.os.Bundle
 import android.os.CountDownTimer
+import android.view.View
 import android.widget.Button
 import android.widget.EditText
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
+import androidx.lifecycle.lifecycleScope
 import com.example.terminalabsensi.R
 import com.example.terminalabsensi.domain.usecase.AutentikasiAdminUseCase
-import com.example.terminalabsensi.presentation.karyawan.TambahKaryawanActivity
-import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.koin.android.ext.android.inject
-import com.example.terminalabsensi.presentation.admin.DashboardActivity
 
 class AdminLoginActivity : AppCompatActivity() {
 
     companion object {
         private const val MAKS_PERCOBAAN_GAGAL = 5
         private const val DURASI_LOCKOUT_MS = 5 * 60 * 1000L // 5 menit
+
+        // Disimpan permanen supaya tidak bisa direset dengan menutup layar/aplikasi
+        private const val PREFS_NAME = "admin_login_guard"
+        private const val KEY_JUMLAH_GAGAL = "jumlah_gagal"
+        private const val KEY_LOCKOUT_SAMPAI = "lockout_sampai"
     }
 
     private val autentikasiAdminUseCase: AutentikasiAdminUseCase by inject()
+
+    private val prefs: SharedPreferences by lazy {
+        getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+    }
 
     private lateinit var tvJudul: TextView
     private lateinit var tvSubjudul: TextView
@@ -33,7 +44,6 @@ class AdminLoginActivity : AppCompatActivity() {
     private lateinit var btnBatal: Button
 
     private var modeSetupPertamaKali = false
-    private var jumlahPercobaanGagal = 0
     private var lockoutTimer: CountDownTimer? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -52,25 +62,26 @@ class AdminLoginActivity : AppCompatActivity() {
         btnMasuk.setOnClickListener { onKlikMasuk() }
 
         cekModeAwal()
+        lanjutkanLockoutJikaMasihBerlaku()
     }
 
     private fun cekModeAwal() {
-        CoroutineScope(Dispatchers.IO).launch {
-            val sudahAdaAdmin = autentikasiAdminUseCase.sudahAdaAdmin()
+        lifecycleScope.launch {
+            val sudahAdaAdmin = withContext(Dispatchers.IO) {
+                autentikasiAdminUseCase.sudahAdaAdmin()
+            }
             modeSetupPertamaKali = !sudahAdaAdmin
 
-            runOnUiThread {
-                if (modeSetupPertamaKali) {
-                    tvJudul.text = "Setup PIN Admin"
-                    tvSubjudul.text = "Buat PIN admin (minimal 6 digit)"
-                    etKonfirmasiPin.visibility = android.view.View.VISIBLE
-                    btnMasuk.text = "Simpan PIN"
-                } else {
-                    tvJudul.text = "Masuk Admin"
-                    tvSubjudul.text = "Masukkan PIN Admin"
-                    etKonfirmasiPin.visibility = android.view.View.GONE
-                    btnMasuk.text = "Masuk"
-                }
+            if (modeSetupPertamaKali) {
+                tvJudul.text = "Setup PIN Admin"
+                tvSubjudul.text = "Buat PIN admin (minimal 6 digit)"
+                etKonfirmasiPin.visibility = View.VISIBLE
+                btnMasuk.text = "Simpan PIN"
+            } else {
+                tvJudul.text = "Masuk Admin"
+                tvSubjudul.text = "Masukkan PIN Admin"
+                etKonfirmasiPin.visibility = View.GONE
+                btnMasuk.text = "Masuk"
             }
         }
     }
@@ -90,44 +101,72 @@ class AdminLoginActivity : AppCompatActivity() {
                 return
             }
 
-            CoroutineScope(Dispatchers.IO).launch {
-                autentikasiAdminUseCase.setupPinPertamaKali(pin)
-                runOnUiThread {
-                    bukaDashboard()
+            btnMasuk.isEnabled = false
+            lifecycleScope.launch {
+                withContext(Dispatchers.IO) {
+                    autentikasiAdminUseCase.setupPinPertamaKali(pin)
                 }
+                bukaDashboard()
             }
         } else {
-            if (lockoutTimer != null) return // sedang lockout
+            if (sisaLockoutMs() > 0L) return // sedang lockout
 
-            CoroutineScope(Dispatchers.IO).launch {
-                val berhasil = autentikasiAdminUseCase.login(pin)
-                runOnUiThread {
-                    if (berhasil) {
-                        jumlahPercobaanGagal = 0
-                        bukaDashboard()
+            btnMasuk.isEnabled = false
+            lifecycleScope.launch {
+                val berhasil = withContext(Dispatchers.IO) {
+                    autentikasiAdminUseCase.login(pin)
+                }
+                if (berhasil) {
+                    resetPercobaanGagal()
+                    bukaDashboard()
+                } else {
+                    val jumlahGagal = prefs.getInt(KEY_JUMLAH_GAGAL, 0) + 1
+                    if (jumlahGagal >= MAKS_PERCOBAAN_GAGAL) {
+                        prefs.edit()
+                            .putInt(KEY_JUMLAH_GAGAL, 0)
+                            .putLong(KEY_LOCKOUT_SAMPAI, System.currentTimeMillis() + DURASI_LOCKOUT_MS)
+                            .apply()
+                        mulaiLockout(DURASI_LOCKOUT_MS)
                     } else {
-                        jumlahPercobaanGagal++
-                        if (jumlahPercobaanGagal >= MAKS_PERCOBAAN_GAGAL) {
-                            mulaiLockout()
-                        } else {
-                            tvError.text = "PIN salah (percobaan $jumlahPercobaanGagal/$MAKS_PERCOBAAN_GAGAL)"
-                        }
+                        prefs.edit().putInt(KEY_JUMLAH_GAGAL, jumlahGagal).apply()
+                        btnMasuk.isEnabled = true
+                        tvError.text = "PIN salah (percobaan $jumlahGagal/$MAKS_PERCOBAAN_GAGAL)"
                     }
                 }
             }
         }
     }
 
-    private fun mulaiLockout() {
+    /** Sisa lockout (ms). Dibatasi ke DURASI_LOCKOUT_MS bila jam perangkat dimundurkan. */
+    private fun sisaLockoutMs(): Long {
+        val sampai = prefs.getLong(KEY_LOCKOUT_SAMPAI, 0L)
+        val sisa = sampai - System.currentTimeMillis()
+        return sisa.coerceIn(0L, DURASI_LOCKOUT_MS)
+    }
+
+    private fun lanjutkanLockoutJikaMasihBerlaku() {
+        val sisa = sisaLockoutMs()
+        if (sisa > 0L) mulaiLockout(sisa)
+    }
+
+    private fun resetPercobaanGagal() {
+        prefs.edit()
+            .putInt(KEY_JUMLAH_GAGAL, 0)
+            .putLong(KEY_LOCKOUT_SAMPAI, 0L)
+            .apply()
+    }
+
+    private fun mulaiLockout(durasiMs: Long) {
+        lockoutTimer?.cancel()
         btnMasuk.isEnabled = false
-        lockoutTimer = object : CountDownTimer(DURASI_LOCKOUT_MS, 1000) {
+        lockoutTimer = object : CountDownTimer(durasiMs, 1000) {
             override fun onTick(millisUntilFinished: Long) {
                 val detik = millisUntilFinished / 1000
                 tvError.text = "Terlalu banyak percobaan, coba lagi dalam ${detik}s"
             }
 
             override fun onFinish() {
-                jumlahPercobaanGagal = 0
+                resetPercobaanGagal()
                 tvError.text = ""
                 btnMasuk.isEnabled = true
                 lockoutTimer = null

@@ -12,6 +12,7 @@ import org.koin.android.ext.koin.androidContext
 import org.koin.core.context.startKoin
 import org.koin.java.KoinJavaComponent.inject
 import org.opencv.android.OpenCVLoader
+import android.content.pm.ApplicationInfo
 
 class AbsensiApp : Application() {
 
@@ -39,8 +40,10 @@ class AbsensiApp : Application() {
 
         Log.i(TAG, "Pondasi Koin DI Berhasil Dimuat!")
 
-        // Seed data dummy untuk keperluan testing (Fase 1/3), sesuai Task Breakdown
-        seedDummyData()
+        val sedangDebug = (applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE) != 0
+        if (sedangDebug) {
+            seedDummyData()
+        }
     }
 
     private fun seedDummyData() {

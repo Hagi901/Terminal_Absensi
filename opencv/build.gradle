@@ -103,7 +103,6 @@ android {
 
     defaultConfig {
         minSdkVersion 21
-        targetSdkVersion 31
 
 
         externalNativeBuild {
@@ -134,7 +133,7 @@ android {
                 doNotStrip '**/*.so'  // controlled by OpenCV CMake scripts
             }
             minifyEnabled false
-            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.txt'
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
     }
 
@@ -175,6 +174,12 @@ android {
         }
     }
     ndkVersion '27.0.12077973'
+    lint {
+        targetSdk 31
+    }
+    testOptions {
+        targetSdk 31
+    }
 }
 
 publishing {

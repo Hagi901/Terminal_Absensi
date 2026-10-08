@@ -5,12 +5,14 @@ import android.widget.Button
 import android.widget.EditText
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
+import androidx.lifecycle.lifecycleScope
 import com.example.terminalabsensi.R
 import com.example.terminalabsensi.data.local.dao.KonfigurasiDao
 import com.example.terminalabsensi.data.local.entity.Konfigurasi
 import com.example.terminalabsensi.domain.usecase.AutentikasiAdminUseCase
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.launch
 import org.koin.android.ext.android.inject
 
@@ -44,18 +46,17 @@ class PengaturanActivity : AppCompatActivity() {
     }
 
     private fun muatKonfigurasi() {
-        CoroutineScope(Dispatchers.IO).launch {
-            val konfigurasi = konfigurasiDao.get() ?: Konfigurasi()
-            runOnUiThread {
-                etJamMulai.setText(konfigurasi.jamMulaiKerja)
-                etBatasTelat.setText(konfigurasi.batasToleransiTelat)
-                etJamPulang.setText(konfigurasi.jamPulangKerja)
-            }
+        lifecycleScope.launch {
+            val konfigurasi = withContext(Dispatchers.IO) { konfigurasiDao.get() } ?: Konfigurasi()
+            etJamMulai.setText(konfigurasi.jamMulaiKerja)
+            etBatasTelat.setText(konfigurasi.batasToleransiTelat)
+            etJamPulang.setText(konfigurasi.jamPulangKerja)
         }
     }
 
-    private fun formatJamValid(jam: String): Boolean {
-        return Regex("^([01]\\d|2[0-3]):[0-5]\\d$").matches(jam)
+    private fun menitDariJam(jam: String): Int {
+        val (h, m) = jam.split(":")
+        return h.toInt() * 60 + m.toInt()
     }
 
     private fun onKlikSimpanJamKerja() {
@@ -68,17 +69,43 @@ class PengaturanActivity : AppCompatActivity() {
             return
         }
 
-        CoroutineScope(Dispatchers.IO).launch {
-            konfigurasiDao.insertOrUpdate(
-                Konfigurasi(
-                    jamMulaiKerja = jamMulai,
-                    batasToleransiTelat = batasTelat,
-                    jamPulangKerja = jamPulang
+        val menitMulai = menitDariJam(jamMulai)
+        val menitBatasTelat = menitDariJam(batasTelat)
+        val menitPulang = menitDariJam(jamPulang)
+        if (menitBatasTelat < menitMulai) {
+            Toast.makeText(
+                this,
+                "Batas toleransi telat tidak boleh lebih awal dari jam mulai kerja",
+                Toast.LENGTH_LONG
+            ).show()
+            return
+        }
+        if (menitPulang <= menitBatasTelat) {
+            Toast.makeText(
+                this,
+                "Jam pulang harus lebih akhir dari batas toleransi telat",
+                Toast.LENGTH_LONG
+            ).show()
+            return
+        }
+
+        lifecycleScope.launch {
+            withContext(Dispatchers.IO) {
+                // Pertahankan field lain (mis. thresholdConfidence), jangan dibuat ulang dari default
+                val lama = konfigurasiDao.get() ?: Konfigurasi()
+                konfigurasiDao.insertOrUpdate(
+                    lama.copy(
+                        jamMulaiKerja = jamMulai,
+                        batasToleransiTelat = batasTelat,
+                        jamPulangKerja = jamPulang
+                    )
                 )
-            )
-            runOnUiThread {
-                Toast.makeText(this@PengaturanActivity, "Jam kerja berhasil disimpan", Toast.LENGTH_SHORT).show()
             }
+            Toast.makeText(
+                this@PengaturanActivity,
+                "Jam kerja berhasil disimpan",
+                Toast.LENGTH_SHORT
+            ).show()
         }
     }
 
@@ -96,17 +123,18 @@ class PengaturanActivity : AppCompatActivity() {
             return
         }
 
-        CoroutineScope(Dispatchers.IO).launch {
-            val berhasil = autentikasiAdminUseCase.ubahPin(pinLama, pinBaru)
-            runOnUiThread {
-                if (berhasil) {
-                    Toast.makeText(this@PengaturanActivity, "PIN berhasil diubah", Toast.LENGTH_SHORT).show()
-                    etPinLama.text.clear()
-                    etPinBaru.text.clear()
-                    etKonfirmasiPinBaru.text.clear()
-                } else {
-                    Toast.makeText(this@PengaturanActivity, "PIN lama salah", Toast.LENGTH_SHORT).show()
-                }
+        lifecycleScope.launch {
+            val berhasil = withContext(Dispatchers.IO) {
+                autentikasiAdminUseCase.ubahPin(pinLama, pinBaru)
+            }
+            if (berhasil) {
+                Toast.makeText(this@PengaturanActivity, "PIN berhasil diubah", Toast.LENGTH_SHORT)
+                    .show()
+                etPinLama.text.clear()
+                etPinBaru.text.clear()
+                etKonfirmasiPinBaru.text.clear()
+            } else {
+                Toast.makeText(this@PengaturanActivity, "PIN lama salah", Toast.LENGTH_SHORT).show()
             }
         }
     }

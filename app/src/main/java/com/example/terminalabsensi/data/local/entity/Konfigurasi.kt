@@ -10,5 +10,5 @@ data class Konfigurasi(
     val jamMulaiKerja: String = "08:00",       // format "HH:mm"
     val batasToleransiTelat: String = "08:30", // format "HH:mm"
     val jamPulangKerja: String = "17:00",      // format "HH:mm"
-    val thresholdConfidence: Float = 0.6f      // nilai default sementara, akan dikalibrasi nanti di Fase 2
+    val thresholdConfidence: Float = 0.5f
 )

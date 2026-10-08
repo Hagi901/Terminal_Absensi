@@ -17,3 +17,4 @@ opencv/.cxx/
 
 keystore.properties
 *.jks
+/app/release/

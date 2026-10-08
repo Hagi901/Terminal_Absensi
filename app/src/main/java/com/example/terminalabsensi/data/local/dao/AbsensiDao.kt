@@ -37,6 +37,10 @@ interface AbsensiDao {
             keteranganDiubahOleh = :diubahOleh, keteranganDiubahPada = :diubahPada
         WHERE idAbsensi = :idAbsensi
     """)
+
+    @Query("SELECT COUNT(*) FROM absensi WHERE idKaryawan = :idKaryawan")
+    suspend fun countByKaryawan(idKaryawan: String): Int
+
     suspend fun updateKeterangan(
         idAbsensi: String,
         keterangan: String,

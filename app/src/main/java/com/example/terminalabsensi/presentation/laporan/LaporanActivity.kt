@@ -29,6 +29,13 @@ import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.pdf.PdfDocument
 import java.util.Date
+import android.Manifest
+import android.content.pm.PackageManager
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.ContextCompat
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.withContext
 
 class LaporanActivity : AppCompatActivity() {
 
@@ -41,6 +48,30 @@ class LaporanActivity : AppCompatActivity() {
 
     var dataLaporanTerakhir: List<Pair<Absensi, String>> = emptyList()
         private set
+    private var aksiExportTertunda: (() -> Unit)? = null
+
+    private val requestIzinStorage =
+        registerForActivityResult(ActivityResultContracts.RequestPermission()) { diizinkan ->
+            val aksi = aksiExportTertunda
+            aksiExportTertunda = null
+            if (diizinkan) {
+                aksi?.invoke()
+            } else {
+                Toast.makeText(this, "Izin penyimpanan dibutuhkan untuk mengekspor laporan", Toast.LENGTH_LONG).show()
+            }
+        }
+
+    private fun jalankanExport(aksi: () -> Unit) {
+        val perluIzin = Build.VERSION.SDK_INT < Build.VERSION_CODES.Q &&
+                ContextCompat.checkSelfPermission(this, Manifest.permission.WRITE_EXTERNAL_STORAGE) !=
+                PackageManager.PERMISSION_GRANTED
+        if (perluIzin) {
+            aksiExportTertunda = aksi
+            requestIzinStorage.launch(Manifest.permission.WRITE_EXTERNAL_STORAGE)
+        } else {
+            aksi()
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -60,14 +91,14 @@ class LaporanActivity : AppCompatActivity() {
             if (dataLaporanTerakhir.isEmpty()) {
                 Toast.makeText(this, "Tampilkan laporan dulu sebelum export", Toast.LENGTH_SHORT).show()
             } else {
-                exportCsv()
+                jalankanExport { exportCsv() }
             }
         }
         findViewById<Button>(R.id.btnExportPdf).setOnClickListener {
             if (dataLaporanTerakhir.isEmpty()) {
                 Toast.makeText(this, "Tidak ada data untuk di-export", Toast.LENGTH_SHORT).show()
             } else {
-                exportPdf()
+                jalankanExport { exportPdf() }
             }
         }
     }
@@ -104,22 +135,16 @@ class LaporanActivity : AppCompatActivity() {
             return
         }
 
-        CoroutineScope(Dispatchers.IO).launch {
-            absensiDao.getByRentangTanggal(tanggalMulai, tanggalAkhir).collect { daftarAbsensi ->
-                val cacheNama = mutableMapOf<String, String>()
-                val hasil = mutableListOf<Pair<Absensi, String>>()
-
-                for (absensi in daftarAbsensi) {
-                    val nama = cacheNama.getOrPut(absensi.idKaryawan) {
-                        karyawanDao.getById(absensi.idKaryawan)?.nama ?: "(Tidak diketahui)"
-                    }
-                    hasil.add(absensi to nama)
-                }
-
-                dataLaporanTerakhir = hasil
-                runOnUiThread { tampilkanTabel(hasil) }
-                return@collect
+        lifecycleScope.launch {
+            // first() = ambil data SEKALI. Flow Room tidak pernah selesai, jadi collect()
+            // menumpuk collector baru setiap tombol ditekan.
+            val hasil = withContext(Dispatchers.IO) {
+                val namaPerId = karyawanDao.getAll().first().associate { it.idKaryawan to it.nama }
+                absensiDao.getByRentangTanggal(tanggalMulai, tanggalAkhir).first()
+                    .map { it to (namaPerId[it.idKaryawan] ?: "(Tidak diketahui)") }
             }
+            dataLaporanTerakhir = hasil
+            tampilkanTabel(hasil)
         }
     }
 
@@ -213,48 +238,63 @@ class LaporanActivity : AppCompatActivity() {
         val tanggalMulai = etTanggalMulai.text.toString().trim()
         val tanggalAkhir = etTanggalAkhir.text.toString().trim()
         val namaFile = "presensi_${tanggalMulai}_${tanggalAkhir}.csv"
+        val data = dataLaporanTerakhir
 
-        val sb = StringBuilder()
-        // "sep=," memberitahu Excel bahwa pemisah kolom adalah koma
-        sb.append("sep=,\n")
-        sb.append("Nama,Tanggal,Jam,Jenis,Status,Keterangan,Catatan Tambahan,ID Karyawan\n")
+        lifecycleScope.launch {
+            val pesan = withContext(Dispatchers.IO) {
+                try {
+                    val sb = StringBuilder()
+                    sb.append("sep=,\n")
+                    sb.append("ID Karyawan,Nama,Tanggal,Jam,Jenis,Status,Keterangan,Catatan Tambahan\n")
 
-        for ((absensi, nama) in dataLaporanTerakhir) {
-            val jam = SimpleDateFormat("HH:mm", Locale.getDefault()).format(absensi.timestamp)
-            sb.append(
-                "${csvSafe(nama)},\"${absensi.tanggal}\",$jam," +
-                        "${absensi.jenisAbsen},${csvSafe(absensi.status)}," +
-                        "${csvSafe(absensi.keterangan ?: "")}," +
-                        "${csvSafe(absensi.catatanTambahan ?: "")}," +
-                        "\"${absensi.idKaryawan}\"\n"
-            )
-        }
-
-        try {
-            val uri = simpanFileKeDownloads(namaFile, "text/csv")
-            if (uri != null) {
-                contentResolver.openOutputStream(uri)?.use { outputStream ->
-                    OutputStreamWriter(outputStream, Charsets.UTF_8).use { writer ->
-                        writer.write("\uFEFF") // BOM UTF-8 agar karakter Indonesia terbaca
-                        writer.write(sb.toString())
+                    val formatJam = SimpleDateFormat("HH:mm", Locale.getDefault())
+                    for ((absensi, nama) in data) {
+                        val jam = formatJam.format(absensi.timestamp)
+                        sb.append(
+                            "${csvPaksaTeks(absensi.idKaryawan)},${csvSafe(nama)},${csvPaksaTeks(absensi.tanggal)},$jam," +
+                                    "${absensi.jenisAbsen},${csvSafe(absensi.status)}," +
+                                    "${csvSafe(absensi.keterangan ?: "")}," +
+                                    "${csvSafe(absensi.catatanTambahan ?: "")}\n"
+                        )
                     }
+
+                    val uri = simpanFileKeDownloads(namaFile, "text/csv")
+                    if (uri != null) {
+                        contentResolver.openOutputStream(uri)?.use { outputStream ->
+                            OutputStreamWriter(outputStream, Charsets.UTF_8).use { writer ->
+                                writer.write("\uFEFF") // BOM UTF-8
+                                writer.write(sb.toString())
+                            }
+                        }
+                        "CSV disimpan di folder Download: $namaFile"
+                    } else {
+                        "Gagal membuat file CSV"
+                    }
+                } catch (e: Exception) {
+                    pesanErrorPenyimpanan(e)
                 }
-                Toast.makeText(this, "CSV disimpan di folder Download: $namaFile", Toast.LENGTH_LONG).show()
-            } else {
-                Toast.makeText(this, "Gagal membuat file CSV", Toast.LENGTH_LONG).show()
             }
-        } catch (e: Exception) {
-            Toast.makeText(this, pesanErrorPenyimpanan(e), Toast.LENGTH_LONG).show()
+            Toast.makeText(this@LaporanActivity, pesan, Toast.LENGTH_LONG).show()
         }
     }
 
-    /** Menangani karakter khusus CSV (koma, kutip) supaya file tidak rusak */
+    /** Membungkus nilai jadi ="..." supaya Excel menganggapnya teks (bukan tanggal/angka) */
+    private fun csvPaksaTeks(teks: String): String {
+        return "=\"${teks.replace("\"", "\"\"")}\""
+    }
+
+    /**
+     * Menangani koma/kutip/baris baru, dan menetralkan "CSV injection": sel yang diawali
+     * = + - @ dieksekusi sebagai rumus oleh Excel, jadi diberi awalan petik tunggal.
+     */
     private fun csvSafe(teks: String): String {
-        return if (teks.contains(",") || teks.contains("\"")) {
-            "\"${teks.replace("\"", "\"\"")}\""
+        val aman = if (teks.isNotEmpty() && teks[0] in charArrayOf('=', '+', '-', '@', '\t', '\r')) {
+            "'$teks"
         } else {
             teks
         }
+        val perluKutip = aman.any { it == ',' || it == '"' || it == '\n' || it == '\r' }
+        return if (perluKutip) "\"${aman.replace("\"", "\"\"")}\"" else aman
     }
 
     /**
@@ -309,8 +349,24 @@ class LaporanActivity : AppCompatActivity() {
         val tanggalMulai = etTanggalMulai.text.toString().trim()
         val tanggalAkhir = etTanggalAkhir.text.toString().trim()
         val namaFile = "laporan_presensi_${tanggalMulai}_${tanggalAkhir}.pdf"
+        val data = dataLaporanTerakhir
 
-        val pdfDocument = PdfDocument() // Di luar try agar bisa diakses di catch
+        lifecycleScope.launch {
+            val pesan = withContext(Dispatchers.IO) {
+                buatPdf(namaFile, tanggalMulai, tanggalAkhir, data)
+            }
+            Toast.makeText(this@LaporanActivity, pesan, Toast.LENGTH_LONG).show()
+        }
+    }
+
+    /** Berjalan di background thread. Mengembalikan pesan hasil. */
+    private fun buatPdf(
+        namaFile: String,
+        tanggalMulai: String,
+        tanggalAkhir: String,
+        data: List<Pair<Absensi, String>>
+    ): String {
+        val pdfDocument = PdfDocument()
 
         try {
             val pageWidth = 595
@@ -322,6 +378,8 @@ class LaporanActivity : AppCompatActivity() {
             val paintHeader = Paint().apply { textSize = 9f; isFakeBoldText = true; color = Color.BLACK }
             val paintIsi = Paint().apply { textSize = 9f; color = Color.BLACK }
             val paintGaris = Paint().apply { color = Color.LTGRAY; strokeWidth = 1f }
+
+            val kolomX = floatArrayOf(margin, margin + 90f, margin + 180f, margin + 230f, margin + 290f, margin + 370f)
 
             var halamanKe = 1
             var pageInfo = PdfDocument.PageInfo.Builder(pageWidth, pageHeight, halamanKe).create()
@@ -338,7 +396,6 @@ class LaporanActivity : AppCompatActivity() {
                 canvas.drawText("Dicetak: ${formatCetak.format(Date())}", margin, y, paintSubjudul)
                 y += 20f
 
-                val kolomX = floatArrayOf(margin, margin + 90f, margin + 180f, margin + 230f, margin + 290f, margin + 370f)
                 canvas.drawText("Nama",        kolomX[0], y, paintHeader)
                 canvas.drawText("Tanggal",     kolomX[1], y, paintHeader)
                 canvas.drawText("Jam",         kolomX[2], y, paintHeader)
@@ -352,9 +409,8 @@ class LaporanActivity : AppCompatActivity() {
 
             gambarHeaderHalaman()
 
-            val kolomX = floatArrayOf(margin, margin + 90f, margin + 180f, margin + 230f, margin + 290f, margin + 370f)
-
-            for ((absensi, nama) in dataLaporanTerakhir) {
+            val formatJam = SimpleDateFormat("HH:mm", Locale.getDefault())
+            for ((absensi, nama) in data) {
                 if (y > pageHeight - margin - 20f) {
                     pdfDocument.finishPage(page)
                     halamanKe++
@@ -365,35 +421,33 @@ class LaporanActivity : AppCompatActivity() {
                     gambarHeaderHalaman()
                 }
 
-                val jam = SimpleDateFormat("HH:mm", Locale.getDefault()).format(absensi.timestamp)
+                val jam = formatJam.format(absensi.timestamp)
                 val keterangan = absensi.keterangan ?: "-"
 
-                canvas.drawText(nama.take(14),             kolomX[0], y, paintIsi)
-                canvas.drawText(absensi.tanggal,           kolomX[1], y, paintIsi)
-                canvas.drawText(jam,                       kolomX[2], y, paintIsi)
-                canvas.drawText(absensi.jenisAbsen,        kolomX[3], y, paintIsi)
-                canvas.drawText(absensi.status.take(12),   kolomX[4], y, paintIsi)
-                canvas.drawText(keterangan.take(14),       kolomX[5], y, paintIsi)
+                canvas.drawText(nama.take(14),            kolomX[0], y, paintIsi)
+                canvas.drawText(absensi.tanggal,          kolomX[1], y, paintIsi)
+                canvas.drawText(jam,                      kolomX[2], y, paintIsi)
+                canvas.drawText(absensi.jenisAbsen,       kolomX[3], y, paintIsi)
+                canvas.drawText(absensi.status.take(12),  kolomX[4], y, paintIsi)
+                canvas.drawText(keterangan.take(14),      kolomX[5], y, paintIsi)
                 y += 16f
             }
 
             pdfDocument.finishPage(page)
 
             val uri = simpanFileKeDownloads(namaFile, "application/pdf")
-            if (uri != null) {
+            return if (uri != null) {
                 contentResolver.openOutputStream(uri)?.use { outputStream ->
                     pdfDocument.writeTo(outputStream)
                 }
-                Toast.makeText(this, "PDF berhasil disimpan di folder Download: $namaFile", Toast.LENGTH_LONG).show()
+                "PDF berhasil disimpan di folder Download: $namaFile"
             } else {
-                Toast.makeText(this, "Gagal membuat file PDF", Toast.LENGTH_LONG).show()
+                "Gagal membuat file PDF"
             }
-
-            pdfDocument.close()
-
         } catch (e: Exception) {
-            pdfDocument.close() // Pastikan resource ditutup meski gagal
-            Toast.makeText(this, pesanErrorPenyimpanan(e), Toast.LENGTH_LONG).show()
+            return pesanErrorPenyimpanan(e)
+        } finally {
+            pdfDocument.close()
         }
     }
 }

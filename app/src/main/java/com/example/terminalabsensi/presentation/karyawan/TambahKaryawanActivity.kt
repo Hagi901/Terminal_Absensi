@@ -16,6 +16,8 @@ import androidx.camera.core.Preview
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.lifecycleScope
+import androidx.room.withTransaction
 import com.example.terminalabsensi.R
 import com.example.terminalabsensi.data.local.dao.SampelWajahDao
 import com.example.terminalabsensi.data.local.entity.Karyawan
@@ -24,14 +26,20 @@ import com.example.terminalabsensi.domain.usecase.ValidasiEnrollmentUseCase
 import com.example.terminalabsensi.facerecognition.FaceDetectorYNWrapper
 import com.example.terminalabsensi.facerecognition.FaceEmbedder
 import com.example.terminalabsensi.facerecognition.FaceUtils
-import kotlinx.coroutines.CoroutineScope
+import com.example.terminalabsensi.data.local.AppDatabase
+import com.example.terminalabsensi.data.local.dao.KonfigurasiDao
+import com.example.terminalabsensi.data.local.entity.Konfigurasi
+import com.example.terminalabsensi.domain.usecase.CekDuplikasiWajahUseCase
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.koin.android.ext.android.inject
 import com.example.terminalabsensi.data.local.dao.KaryawanDao
 import java.util.UUID
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
+import java.util.concurrent.CopyOnWriteArrayList
 
 class TambahKaryawanActivity : AppCompatActivity() {
 
@@ -45,6 +53,10 @@ class TambahKaryawanActivity : AppCompatActivity() {
     private val karyawanDao: KaryawanDao by inject()
     private val sampelWajahDao: SampelWajahDao by inject()
     private val validasiEnrollmentUseCase: ValidasiEnrollmentUseCase by inject()
+    private val cekDuplikasiWajahUseCase: CekDuplikasiWajahUseCase by inject()
+    private val konfigurasiDao: KonfigurasiDao by inject()
+    private val database: AppDatabase by inject()
+
 
     private lateinit var previewView: PreviewView
     private lateinit var etIdKaryawan: EditText
@@ -61,7 +73,7 @@ class TambahKaryawanActivity : AppCompatActivity() {
     @Volatile private var lastEmbedding: FloatArray? = null
     @Volatile private var jumlahWajahTerdeteksi = 0
     @Volatile private var lastPoseDetected: String = "depan" // <-- Tambahkan baris ini
-    private val sampelTersimpan = mutableListOf<FloatArray>()
+    private val sampelTersimpan = CopyOnWriteArrayList<FloatArray>()
     @Volatile private var mintaAmbilSampel = false
 
     private val requestCameraPermission =
@@ -167,6 +179,9 @@ class TambahKaryawanActivity : AppCompatActivity() {
             }
 
             runOnUiThread {
+                // Semua sampel sudah lengkap: jangan timpa pesan "sampel lengkap"
+                if (sampelTersimpan.size >= SUDUT_CAPTURE.size) return@runOnUiThread
+
                 val sudutTarget = sudutSaatIni()
                 val poseSesuai = lastPoseDetected == sudutTarget
 
@@ -266,6 +281,7 @@ class TambahKaryawanActivity : AppCompatActivity() {
                 tvInstruksi.text = "Semua sampel wajah sudah lengkap! Silakan tekan Simpan Karyawan."
                 tvInstruksi.setTextColor(0xFF4CAF50.toInt())
                 btnAmbilSampel.isEnabled = false
+                btnSimpan.isEnabled = true
             }
         }
     }
@@ -275,53 +291,74 @@ class TambahKaryawanActivity : AppCompatActivity() {
         val nama = etNama.text.toString().trim()
         val jabatan = etJabatan.text.toString().trim().ifBlank { null }
 
-        CoroutineScope(Dispatchers.IO).launch {
-            val hasilValidasi = validasiEnrollmentUseCase.validasiDataKaryawan(id, nama)
+        val sampel = sampelTersimpan.toList() // snapshot
+        btnSimpan.isEnabled = false           // cegah klik ganda
 
-            val pesanError = when (hasilValidasi) {
-                ValidasiEnrollmentUseCase.HasilValidasiData.IdKosong -> "ID Karyawan tidak boleh kosong"
-                ValidasiEnrollmentUseCase.HasilValidasiData.NamaKosong -> "Nama tidak boleh kosong"
-                ValidasiEnrollmentUseCase.HasilValidasiData.IdSudahDipakai -> "ID Karyawan sudah dipakai"
-                ValidasiEnrollmentUseCase.HasilValidasiData.Valid -> null
-            }
-
-            if (pesanError != null) {
-                runOnUiThread { Toast.makeText(this@TambahKaryawanActivity, pesanError, Toast.LENGTH_LONG).show() }
-                return@launch
-            }
-
-            if (!validasiEnrollmentUseCase.validasiJumlahSampel(sampelTersimpan.size)) {
-                runOnUiThread {
-                    Toast.makeText(this@TambahKaryawanActivity, "Sampel wajah belum cukup", Toast.LENGTH_LONG).show()
-                }
-                return@launch
-            }
-
+        lifecycleScope.launch {
             try {
-                karyawanDao.insert(Karyawan(idKaryawan = id, nama = nama, jabatan = jabatan))
-
-                sampelTersimpan.forEachIndexed { index, embedding ->
-                    sampelWajahDao.insert(
-                        SampelWajah(
-                            idSampel = UUID.randomUUID().toString(),
-                            idKaryawan = id,
-                            fiturWajah = embedding,
-                            sudutCapture = SUDUT_CAPTURE[index]
-                        )
-                    )
+                val pesanError = withContext(Dispatchers.IO) {
+                    validasiDanSimpan(id, nama, jabatan, sampel)
                 }
-
-                runOnUiThread {
+                if (pesanError != null) {
+                    Toast.makeText(this@TambahKaryawanActivity, pesanError, Toast.LENGTH_LONG).show()
+                    btnSimpan.isEnabled = true
+                } else {
                     Toast.makeText(this@TambahKaryawanActivity, "Karyawan berhasil ditambahkan", Toast.LENGTH_LONG).show()
                     finish()
                 }
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 Log.e(TAG, "Gagal simpan karyawan", e)
-                runOnUiThread {
-                    Toast.makeText(this@TambahKaryawanActivity, "Gagal menyimpan: ${e.message}", Toast.LENGTH_LONG).show()
-                }
+                Toast.makeText(this@TambahKaryawanActivity, "Gagal menyimpan: ${e.message}", Toast.LENGTH_LONG).show()
+                btnSimpan.isEnabled = true
             }
         }
+    }
+
+    /** Berjalan di background. Mengembalikan pesan error, atau null jika berhasil. */
+    private suspend fun validasiDanSimpan(
+        id: String,
+        nama: String,
+        jabatan: String?,
+        sampel: List<FloatArray>
+    ): String? {
+        val hasilValidasi = validasiEnrollmentUseCase.validasiDataKaryawan(id, nama)
+        val pesanError = when (hasilValidasi) {
+            ValidasiEnrollmentUseCase.HasilValidasiData.IdKosong -> "ID Karyawan tidak boleh kosong"
+            ValidasiEnrollmentUseCase.HasilValidasiData.NamaKosong -> "Nama tidak boleh kosong"
+            ValidasiEnrollmentUseCase.HasilValidasiData.IdSudahDipakai -> "ID Karyawan sudah dipakai"
+            ValidasiEnrollmentUseCase.HasilValidasiData.Valid -> null
+        }
+        if (pesanError != null) return pesanError
+
+        if (!validasiEnrollmentUseCase.validasiJumlahSampel(sampel.size)) {
+            return "Sampel wajah belum cukup"
+        }
+
+        // Tolak jika wajah ini sudah terdaftar atas karyawan lain
+        val threshold = (konfigurasiDao.get() ?: Konfigurasi()).thresholdConfidence
+        val duplikat = cekDuplikasiWajahUseCase(sampel, threshold)
+        if (duplikat != null) {
+            return "Wajah ini sudah terdaftar atas nama ${duplikat.karyawan.nama} " +
+                    "(${duplikat.karyawan.idKaryawan})"
+        }
+
+        // Karyawan + semua sampel disimpan ATOMIK
+        database.withTransaction {
+            karyawanDao.insert(Karyawan(idKaryawan = id, nama = nama, jabatan = jabatan))
+            sampelWajahDao.insertAll(
+                sampel.mapIndexed { index, embedding ->
+                    SampelWajah(
+                        idSampel = UUID.randomUUID().toString(),
+                        idKaryawan = id,
+                        fiturWajah = embedding,
+                        sudutCapture = SUDUT_CAPTURE[index]
+                    )
+                }
+            )
+        }
+        return null
     }
 
     override fun onDestroy() {

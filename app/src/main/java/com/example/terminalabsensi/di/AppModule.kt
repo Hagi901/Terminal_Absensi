@@ -4,6 +4,7 @@ import androidx.room.Room
 import com.example.terminalabsensi.data.local.AppDatabase
 import com.example.terminalabsensi.facerecognition.FaceEmbedder
 import org.koin.dsl.module
+import com.example.terminalabsensi.domain.usecase.CekDuplikasiWajahUseCase
 import com.example.terminalabsensi.facerecognition.FaceDetectorYNWrapper
 import com.example.terminalabsensi.domain.usecase.TentukanJenisAbsensiUseCase
 import com.example.terminalabsensi.domain.usecase.TentukanStatusUseCase
@@ -29,9 +30,8 @@ val appModule = module {
     single { get<AppDatabase>().adminDao() }
     single { get<AppDatabase>().konfigurasiDao() }
 
-    // Menyediakan instance FaceDetector secara tunggal (Singleton),
-    // supaya cascade classifier cukup di-load sekali selama app hidup
-    // Model AI Computer Vision (YuNet & SFace)
+
+    // Model AI Computer Vision (YuNet & SFace), di-load sekali selama app hidup
     single { FaceEmbedder(get()) }
     single { FaceDetectorYNWrapper(get()) }
 
@@ -41,5 +41,8 @@ val appModule = module {
     single { ValidasiEnrollmentUseCase(get()) }
     single { CariKaryawanDenganWajahUseCase(get(), get(), get()) }
     single { AutentikasiAdminUseCase(get()) }
+    single {
+        CekDuplikasiWajahUseCase(get(), get(), get())
 
+    }
 }

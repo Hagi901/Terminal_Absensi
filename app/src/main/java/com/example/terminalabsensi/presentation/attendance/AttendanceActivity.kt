@@ -29,6 +29,8 @@ import androidx.core.content.ContextCompat
 import com.example.terminalabsensi.R
 import com.example.terminalabsensi.data.local.dao.AbsensiDao
 import com.example.terminalabsensi.data.local.entity.Absensi
+import com.example.terminalabsensi.data.local.dao.KonfigurasiDao
+import com.example.terminalabsensi.data.local.entity.Konfigurasi
 import com.example.terminalabsensi.domain.usecase.CariKaryawanDenganWajahUseCase
 import com.example.terminalabsensi.domain.usecase.TentukanJenisAbsensiUseCase
 import com.example.terminalabsensi.domain.usecase.TentukanStatusUseCase
@@ -37,7 +39,7 @@ import com.example.terminalabsensi.facerecognition.FaceDetectorYNWrapper
 import com.example.terminalabsensi.facerecognition.FaceEmbedder
 import com.example.terminalabsensi.facerecognition.FaceUtils
 import com.example.terminalabsensi.presentation.admin.AdminLoginActivity
-import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
@@ -54,7 +56,8 @@ class AttendanceActivity : AppCompatActivity() {
 
     companion object {
         private const val TAG = "AttendanceActivity"
-        private const val THRESHOLD_SEMENTARA = 0.5f
+        private const val THRESHOLD_MIN = 0.3f
+        private const val THRESHOLD_MAX = 0.9f
         private const val COOLDOWN_MS = 5000L
         private const val DURASI_TAMPIL_HASIL_MS = 3000L
         private const val DURASI_TIMEOUT_KETERANGAN_DETIK = 15
@@ -63,6 +66,7 @@ class AttendanceActivity : AppCompatActivity() {
     private val faceDetectorYN: FaceDetectorYNWrapper by inject()
     private val faceEmbedder: FaceEmbedder by inject()
     private val absensiDao: AbsensiDao by inject()
+    private val konfigurasiDao: KonfigurasiDao by inject()
     private val cariKaryawanDenganWajahUseCase: CariKaryawanDenganWajahUseCase by inject()
     private val tentukanJenisAbsensiUseCase: TentukanJenisAbsensiUseCase by inject()
     private val tentukanStatusUseCase: TentukanStatusUseCase by inject()
@@ -195,7 +199,7 @@ class AttendanceActivity : AppCompatActivity() {
                 }
                 runOnUiThread {
                     AlertDialog.Builder(this)
-                        .setTitle("⚠️ Sistem Tidak Siap")
+                        .setTitle("Sistem Tidak Siap")
                         .setMessage(pesanGagal.trim())
                         .setCancelable(false)
                         .setPositiveButton("Tutup Aplikasi") { _, _ -> finish() }
@@ -328,18 +332,12 @@ class AttendanceActivity : AppCompatActivity() {
     private fun cariDanProsesAbsensi(embeddingWajah: FloatArray) {
         sedangMemprosesAbsensi = true
 
-        CoroutineScope(Dispatchers.IO).launch {
+        lifecycleScope.launch(Dispatchers.IO) {
             try {
-                val hasilPencarian = cariKaryawanDenganWajahUseCase(embeddingWajah, THRESHOLD_SEMENTARA)
-
-                if (hasilPencarian == null) {
-                    tampilkanOverlayHasil(
-                        tipe = TipeOverlay.GAGAL,
-                        nama = "",
-                        pesan = "Wajah tidak dikenali, silakan coba lagi"
-                    )
-                    return@launch
-                }
+                val threshold = (konfigurasiDao.get() ?: Konfigurasi())
+                    .thresholdConfidence
+                    .coerceIn(THRESHOLD_MIN, THRESHOLD_MAX)
+                val hasilPencarian = cariKaryawanDenganWajahUseCase(embeddingWajah, threshold)
 
                 val idKaryawan = hasilPencarian.karyawan.idKaryawan
                 val namaKaryawan = hasilPencarian.karyawan.nama
@@ -387,6 +385,14 @@ class AttendanceActivity : AppCompatActivity() {
             } finally {
                 sedangMemprosesAbsensi = false
             }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Log.e(TAG, "Error saat memproses absensi", e)
+            tampilkanOverlayHasil(tipe = TipeOverlay.GAGAL, nama = "", pesan = "Terjadi kesalahan, coba lagi")
+        } finally {
+            sedangMemprosesAbsensi = false
+        }
         }
     }
 
